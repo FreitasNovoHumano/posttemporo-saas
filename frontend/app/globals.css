@@ -1,0 +1,28 @@
+/* 🔹 Importa as camadas do Tailwind (OBRIGATÓRIO) */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 🔹 Variáveis globais (útil para temas futuramente) */
+:root {
+  --background: #f9fafb; /* cinza leve */
+  --foreground: #111827; /* texto escuro */
+}
+
+/* 🔹 Reset + base do sistema */
+body {
+  /* Usa Tailwind ao invés de CSS puro */
+  @apply bg-gray-100 text-gray-900;
+  
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* 🔹 Tipografia padrão */
+h1, h2, h3 {
+  @apply font-bold;
+}
+
+/* 🔹 Links sem estilo padrão */
+a {
+  @apply no-underline text-inherit;
+}
