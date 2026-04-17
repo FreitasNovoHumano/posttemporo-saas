@@ -5,18 +5,16 @@ const app = express();
 
 const postRoutes = require("./routes/postRoutes");
 
-app.use(cors());
-app.use(express.json());
-
-app.use(postRoutes);
-
-app.get("/", (req, res) => {
-  res.send("API funcionando 🚀");
-});
-
+// ✅ CORS configurado corretamente
 app.use(cors({
   origin: "http://localhost:3000"
 }));
+
+// ✅ JSON antes das rotas
+app.use(express.json());
+
+// ✅ Rotas
+app.use(postRoutes);
 
 app.listen(3001, () => {
   console.log("🚀 Backend rodando na porta 3001");

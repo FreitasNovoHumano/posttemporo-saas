@@ -1,5 +1,6 @@
 "use client";
 
+import { getPosts, createPost } from "../../services/api";
 import { useState } from "react";
 import { Plus } from "lucide-react";
 
@@ -25,23 +26,24 @@ export default function Posts() {
   }
 
   // 🔹 Cria novo post
-  function handleSubmit(e) {
-    e.preventDefault();
+  async function handleSubmit(e) {
+  e.preventDefault();
 
-    const newPost = {
-      id: Date.now(),
-      ...form,
-      status: "Pendente",
-    };
+  try {
+    const newPost = await createPost(form);
 
-    setPosts([...posts, newPost]);
+    // 🔥 Atualiza lista corretamente
+    setPosts((prev) => [newPost, ...prev]);
 
-    // limpa formulário
     setForm({ title: "", description: "" });
-
-    // fecha modal
     setOpen(false);
+
+  } catch (error) {
+    console.error("Erro ao salvar:", error);
+    console.log("Enviando:", form);
   }
+}
+ 
 
   return (
     <div>
