@@ -14,3 +14,15 @@ model Post {
   status      String   @default("Pendente")
   createdAt   DateTime @default(now())
 }
+
+model Post {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String
+  image       String?  // 🔥 NOVO
+  status      String   @default("Pendente")
+  createdAt   DateTime @default(now())
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+}

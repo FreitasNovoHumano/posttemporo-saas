@@ -1,41 +1,66 @@
-import { FileText, CheckCircle, Clock } from "lucide-react";
+"use client";
 
-export default function Dashboard() {
+/**
+ * 📊 Dashboard
+ */
+
+import { useEffect, useState } from "react";
+import { getPosts } from "../../services/api";
+import { useRouter } from "next/navigation";
+
+export default function DashboardPage() {
+  const [posts, setPosts] = useState([]); // ✅ SEM TYPESCRIPT
+  const router = useRouter();
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      router.push("/login");
+      return;
+    }
+
+    loadPosts();
+  }, []);
+
+  async function loadPosts() {
+    try {
+      const data = await getPosts();
+      setPosts(data);
+    } catch (error) {
+      console.error("Erro ao carregar posts:", error);
+    }
+  }
+
+  {posts.map((post) => (
+  <div key={post.id} className="mb-4 bg-white p-4 rounded shadow">
+    
+    <h2 className="font-bold">{post.title}</h2>
+    <p>{post.description}</p>
+
+    {post.image && (
+      <img
+        src={`http://127.0.0.1:3001${post.image}`}
+        className="mt-2 w-full max-h-60 object-cover rounded"
+      />
+    )}
+
+  </div>
+))}
+
   return (
-    <div>
-      <h1 className="text-3xl font-bold mb-8">Dashboard</h1>
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
 
-      <div className="grid grid-cols-3 gap-6">
-        <Card title="Posts" value="12" icon={FileText} color="blue" />
-        <Card title="Aprovados" value="8" icon={CheckCircle} color="green" />
-        <Card title="Pendentes" value="4" icon={Clock} color="yellow" />
-      </div>
-    </div>
-  );
-}
-
-// 🔹 Componente reutilizável
-function Card({ title, value, icon: Icon, color }) {
-  const colors = {
-    blue: "bg-blue-500/10 text-blue-600",
-    green: "bg-green-500/10 text-green-600",
-    yellow: "bg-yellow-500/10 text-yellow-600",
-  };
-
-  return (
-    <div className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300">
-      
-      <div className="flex justify-between items-center">
-        <div>
-          <p className="text-gray-500">{title}</p>
-          <h2 className="text-4xl font-bold mt-2">{value}</h2>
-        </div>
-
-        <div className={`p-3 rounded-xl ${colors[color]}`}>
-          <Icon size={22} />
-        </div>
-      </div>
-
+      {posts.length === 0 ? (
+        <p>Nenhum post encontrado</p>
+      ) : (
+        posts.map((post) => (
+          <div key={post.id} className="mb-2">
+            {post.title}
+          </div>
+        ))
+      )}
     </div>
   );
 }

@@ -28,6 +28,19 @@ async function createPost(req, res) {
       details: error.message,
     });
   }
+
+  async function createPost(req, res) {
+  const { title, description } = req.body;
+
+  const image = req.file ? `/uploads/${req.file.filename}` : null;
+
+  const post = await postService.createPost(
+    { title, description, image },
+    req.userId
+  );
+
+  res.json(post);
+}
 }
 
 module.exports = {

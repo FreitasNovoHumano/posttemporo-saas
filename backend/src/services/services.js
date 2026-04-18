@@ -3,19 +3,22 @@ const cors = require("cors");
 
 const app = express();
 
-const postRoutes = require("./routes/postRoutes");
-
-// ✅ CORS configurado corretamente
-app.use(cors({
-  origin: "http://localhost:3000"
-}));
-
-// ✅ JSON antes das rotas
+// 🔹 Middlewares
+app.use(cors());
 app.use(express.json());
 
-// ✅ Rotas
-app.use(postRoutes);
+// 🔹 Rota teste
+app.get("/", (req, res) => {
+  res.send("API funcionando 🚀");
+});
 
-app.listen(3001, () => {
+// 🔥 IMPORTANTE: manter servidor ativo
+const PORT = 3001;
+
+app.listen(PORT, () => {
+  console.log(`🚀 Backend rodando na porta ${PORT}`);
+});
+
+app.listen(3001, "127.0.0.1", () => {
   console.log("🚀 Backend rodando na porta 3001");
 });

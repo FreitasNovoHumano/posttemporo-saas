@@ -3,6 +3,9 @@
 import { getPosts, createPost } from "../../services/api";
 import { useState } from "react";
 import { Plus } from "lucide-react";
+import { useUser } from "../../context/AuthContext";
+import { useState } from "react";
+import { createPost } from "../../services/api";
 
 export default function Posts() {
   // 🔹 Estado da lista de posts
@@ -16,6 +19,26 @@ export default function Posts() {
     title: "",
     description: "",
   });
+
+  export default function PostsPage() {
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [image, setImage] = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+
+    const formData = new FormData();
+    formData.append("title", title);
+    formData.append("description", description);
+    formData.append("image", image);
+
+    await createPost(formData);
+
+    setTitle("");
+    setDescription("");
+    setImage(null);
+  }
 
   // 🔹 Atualiza campos do formulário
   function handleChange(e) {
@@ -128,6 +151,35 @@ export default function Posts() {
         </div>
       )}
     </div>
+  );
+}
+
+return (
+    <form onSubmit={handleSubmit} className="space-y-4 p-6">
+      
+      <input
+        placeholder="Título"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        className="border p-2 w-full"
+      />
+
+      <textarea
+        placeholder="Descrição"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        className="border p-2 w-full"
+      />
+
+      <input
+        type="file"
+        onChange={(e) => setImage(e.target.files[0])}
+      />
+
+      <button className="bg-blue-600 text-white px-4 py-2 rounded">
+        Criar Post
+      </button>
+    </form>
   );
 }
 
