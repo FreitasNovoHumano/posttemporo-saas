@@ -1,32 +1,37 @@
 const jwt = require("jsonwebtoken");
 
-const JWT_SECRET = "segredo_super_forte"; // depois colocamos no .env
-
-// 🔐 Middleware de proteção de rotas
+/**
+ * 🔐 Middleware de autenticação
+ * Verifica se o usuário está logado via JWT
+ */
 function authMiddleware(req, res, next) {
+  const authHeader = req.headers.authorization;
+
+  // 🔴 Se não tiver token
+  if (!authHeader) {
+    return res.status(401).json({
+      error: "Token não fornecido",
+    });
+  }
+
+  // 🔹 Formato esperado: Bearer TOKEN
+  const token = authHeader.split(" ")[1];
+
   try {
-    // 🔹 Pega o header Authorization
-    const authHeader = req.headers.authorization;
+    // 🔐 Verifica e decodifica o token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // ❌ Se não tiver token
-    if (!authHeader) {
-      return res.status(401).json({ error: "Token não fornecido" });
-    }
+    /**
+     * 🔥 AQUI ESTÁ O MAIS IMPORTANTE
+     * Salva o usuário na requisição
+     */
+    req.user = decoded; // { id, role }
 
-    // 🔹 Formato esperado: Bearer TOKEN
-    const token = authHeader.split(" ")[1];
-
-    // 🔹 Valida o token
-    const decoded = jwt.verify(token, JWT_SECRET);
-
-    // 🔹 Injeta dados do usuário na requisição
-    req.userId = decoded.userId;
-
-    // 🔥 Libera acesso
     next();
-
   } catch (error) {
-    return res.status(401).json({ error: "Token inválido" });
+    return res.status(401).json({
+      error: "Token inválido",
+    });
   }
 }
 

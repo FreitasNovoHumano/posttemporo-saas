@@ -1,29 +1,55 @@
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 
 const app = express();
 
-const postRoutes = require("./routes/postRoutes");
-
-app.use(cors());
-app.use(express.json());
-
-app.use(postRoutes);
-
-app.use("/uploads", express.static("uploads"));
-
-app.get("/", (req, res) => {
-  res.send("API funcionando 🚀");
-});
-
+/**
+ * 🔐 CONFIGURAÇÃO DE CORS
+ * ----------------------------------------
+ * Permite comunicação entre frontend (Next.js)
+ * e backend (Express)
+ */
 app.use(cors({
-  origin: "http://localhost:3000"
+  origin: "http://localhost:3000",
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 }));
 
-app.listen(3001, () => {
-  console.log("🚀 Backend rodando na porta 3001");
+/**
+ * 🔹 MIDDLEWARES GLOBAIS
+ */
+app.use(express.json());
+
+/**
+ * 🔹 ROTAS
+ */
+const authRoutes = require("./routes/authRoutes");
+const postRoutes = require("./routes/postRoutes");
+
+// 🔐 Rotas de autenticação
+app.use("/auth", authRoutes);
+
+// 📦 Rotas de posts
+app.use("/", postRoutes);
+
+/**
+ * 📁 ARQUIVOS ESTÁTICOS
+ */
+app.use("/uploads", express.static("uploads"));
+
+/**
+ * 🧪 HEALTH CHECK
+ */
+app.get("/", (req, res) => {
+  return res.status(200).send("API funcionando 🚀");
 });
 
-const authRoutes = require("./routes/authRoutes");
+/**
+ * 🚀 START DO SERVIDOR
+ */
+const PORT = 3001;
 
-app.use(authRoutes);
+app.listen(PORT, () => {
+  console.log(`🚀 Backend rodando em http://localhost:${PORT}`);
+});

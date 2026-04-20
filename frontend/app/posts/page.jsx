@@ -1,26 +1,11 @@
 "use client";
 
-import { getPosts, createPost } from "../../services/api";
 import { useState } from "react";
-import { Plus } from "lucide-react";
-import { useUser } from "../../context/AuthContext";
-import { useState } from "react";
-import { createPost } from "../../services/api";
 
-export default function Posts() {
-  // 🔹 Estado da lista de posts
-  const [posts, setPosts] = useState([]);
-
-  // 🔹 Controle do modal
-  const [open, setOpen] = useState(false);
-
-  // 🔹 Dados do formulário
-  const [form, setForm] = useState({
-    title: "",
-    description: "",
-  });
-
-  export default function PostsPage() {
+/**
+ * 📝 Página de Posts
+ */
+export default function PostsPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [image, setImage] = useState(null);
@@ -28,180 +13,67 @@ export default function Posts() {
   async function handleSubmit(e) {
     e.preventDefault();
 
-    const formData = new FormData();
-    formData.append("title", title);
-    formData.append("description", description);
-    formData.append("image", image);
+    try {
+      const token = localStorage.getItem("token");
 
-    await createPost(formData);
+      const formData = new FormData();
+      formData.append("title", title);
+      formData.append("description", description);
 
-    setTitle("");
-    setDescription("");
-    setImage(null);
+      if (image) {
+        formData.append("image", image);
+      }
+
+      const res = await fetch("http://localhost:3001/posts", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      console.log(data);
+      alert("Post criado com sucesso!");
+
+    } catch (error) {
+      console.error(error);
+      alert("Erro ao criar post");
+    }
   }
-
-  // 🔹 Atualiza campos do formulário
-  function handleChange(e) {
-    setForm({
-      ...form,
-      [e.target.name]: e.target.value,
-    });
-  }
-
-  // 🔹 Cria novo post
-  async function handleSubmit(e) {
-  e.preventDefault();
-
-  try {
-    const newPost = await createPost(form);
-
-    // 🔥 Atualiza lista corretamente
-    setPosts((prev) => [newPost, ...prev]);
-
-    setForm({ title: "", description: "" });
-    setOpen(false);
-
-  } catch (error) {
-    console.error("Erro ao salvar:", error);
-    console.log("Enviando:", form);
-  }
-}
- 
 
   return (
-    <div>
-      {/* 🔹 Header */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Posts</h1>
+    <div style={{ padding: 20 }}>
+      <h1>Criar Post</h1>
 
-        <button
-          onClick={() => setOpen(true)}
-          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
-        >
-          <Plus size={18} />
-          Novo Post
-        </button>
-      </div>
+      <form onSubmit={handleSubmit}>
+        <input
+          type="text"
+          placeholder="Título"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
 
-      {/* 🔹 Lista de posts */}
-      <div className="bg-white rounded-2xl shadow p-6">
-        {posts.length === 0 ? (
-          <p className="text-gray-500">Nenhum post ainda...</p>
-        ) : (
-          <div className="space-y-4">
-            {posts.map((post) => (
-              <PostItem key={post.id} post={post} />
-            ))}
-          </div>
-        )}
-      </div>
+        <br /><br />
 
-      {/* 🔹 MODAL */}
-      {open && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
-          
-          <div className="bg-white p-6 rounded-2xl w-96 shadow-lg">
-            
-            <h2 className="text-xl font-bold mb-4">
-              Criar novo post
-            </h2>
+        <textarea
+          placeholder="Descrição"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              
-              {/* Título */}
-              <input
-                name="title"
-                placeholder="Título"
-                value={form.title}
-                onChange={handleChange}
-                className="w-full border p-2 rounded"
-                required
-              />
+        <br /><br />
 
-              {/* Descrição */}
-              <textarea
-                name="description"
-                placeholder="Descrição"
-                value={form.description}
-                onChange={handleChange}
-                className="w-full border p-2 rounded"
-                required
-              />
+        <input
+          type="file"
+          onChange={(e) => setImage(e.target.files[0])}
+        />
 
-              {/* Botões */}
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setOpen(false)}
-                  className="px-4 py-2"
-                >
-                  Cancelar
-                </button>
+        <br /><br />
 
-                <button
-                  type="submit"
-                  className="bg-blue-600 text-white px-4 py-2 rounded"
-                >
-                  Salvar
-                </button>
-              </div>
-
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-return (
-    <form onSubmit={handleSubmit} className="space-y-4 p-6">
-      
-      <input
-        placeholder="Título"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        className="border p-2 w-full"
-      />
-
-      <textarea
-        placeholder="Descrição"
-        value={description}
-        onChange={(e) => setDescription(e.target.value)}
-        className="border p-2 w-full"
-      />
-
-      <input
-        type="file"
-        onChange={(e) => setImage(e.target.files[0])}
-      />
-
-      <button className="bg-blue-600 text-white px-4 py-2 rounded">
-        Criar Post
-      </button>
-    </form>
-  );
-}
-
-// 🔹 Componente de item
-function PostItem({ post }) {
-  const statusColor = {
-    Aprovado: "text-green-600",
-    Pendente: "text-yellow-600",
-  };
-
-  return (
-    <div className="flex justify-between items-center border-b pb-3">
-      
-      <div>
-        <p className="font-medium">{post.title}</p>
-        <p className="text-sm text-gray-500">{post.description}</p>
-      </div>
-
-      <span className={`text-sm ${statusColor[post.status]}`}>
-        {post.status}
-      </span>
-
+        <button type="submit">Criar Post</button>
+      </form>
     </div>
   );
 }

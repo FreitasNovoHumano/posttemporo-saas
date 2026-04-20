@@ -3,27 +3,114 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
-model User {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  password  String
-  posts     Post[]   // 🔥 RELAÇÃO
+enum Role {
+  USER
+  ADMIN
+}
+
+/**
+ * 🔥 ENUM — STATUS DO POST
+ */
+enum PostStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/**
+ * 🔐 ENUM — PERMISSÕES
+ */
+enum Permission {
+  CREATE_POST
+  APPROVE_POST
+  DELETE_POST
+  VIEW_DASHBOARD
+}
+
+/**
+ * 🏢 COMPANY
+ */
+model Company {
+  id   String @id @default(uuid())
+  name String
+
+  users User[]
+  posts Post[]
+
   createdAt DateTime @default(now())
 }
 
-model Post {
-  id          Int      @id @default(autoincrement())
-  title       String
-  description String
-  status      String   @default("Pendente")
-  createdAt   DateTime @default(now())
+/**
+ * 👤 USER
+ */
+model User {
+  id       String  @id @default(uuid())
+  email    String  @unique
+  name     String?
+  password String
 
-  // 🔥 MULTI-TENANT
-  userId Int
-  user   User @relation(fields: [userId], references: [id])
+  role Role @default(USER)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  posts       Post[]
+  permissions UserPermission[] // ✅ CORREÇÃO
+
+  createdAt DateTime @default(now())
+}
+
+/**
+ * 🔐 USER PERMISSIONS (RBAC)
+ */
+model UserPermission {
+  id         String     @id @default(uuid())
+  userId     String
+  permission Permission
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+/**
+ * 📝 POST
+ */
+model Post {
+  id      String @id @default(uuid())
+  title   String
+  content String
+
+  status PostStatus @default(PENDING)
+
+  image String?
+  rejectionComment String?
+
+  scheduledAt DateTime?
+
+  /**
+   * 👤 AUTOR
+   */
+  authorId String
+  author   User @relation(fields: [authorId], references: [id])
+
+  /**
+   * 🏢 EMPRESA (MULTI-TENANT)
+   */
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id])
+
+  /**
+   * 🧾 AUDITORIA
+   */
+  approvedBy String?
+  approvedAt DateTime?
+
+  /**
+   * ⏱️ TEMPO
+   */
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

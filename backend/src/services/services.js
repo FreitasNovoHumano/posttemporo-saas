@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+require("dotenv").config();
 
 const app = express();
 
@@ -7,18 +8,22 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 🔹 Rota teste
+// 🔹 IMPORTAR ROTAS
+const authRoutes = require("./routes/authRoutes");
+const postRoutes = require("./routes/postRoutes");
+
+// 🔹 USAR ROTAS
+app.use("/auth", authRoutes); // 👉 /auth/login
+app.use("/", postRoutes);     // 👉 /posts, /metrics
+
+// 🔹 TESTE RÁPIDO
 app.get("/", (req, res) => {
-  res.send("API funcionando 🚀");
+  res.send("API rodando 🚀");
 });
 
-// 🔥 IMPORTANTE: manter servidor ativo
+// 🔹 START
 const PORT = 3001;
 
 app.listen(PORT, () => {
-  console.log(`🚀 Backend rodando na porta ${PORT}`);
-});
-
-app.listen(3001, "127.0.0.1", () => {
-  console.log("🚀 Backend rodando na porta 3001");
+  console.log(`Servidor rodando na porta ${PORT}`);
 });
