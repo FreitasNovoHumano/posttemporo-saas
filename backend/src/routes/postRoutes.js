@@ -2,25 +2,23 @@ const express = require("express");
 const router = express.Router();
 
 const postController = require("../controllers/postController");
-const authMiddleware = require("../middlewares/authMiddleware");
-const allowRoles = require("../middlewares/roleMiddleware");
-const companyMiddleware = require("../middlewares/companyMiddleware"); // 🔥 NOVO
+
+const auth = require("../middlewares/authMiddleware");
+const company = require("../middlewares/companyMiddleware");
+const role = require("../middlewares/roleMiddleware");
+const audit = require("../middlewares/auditMiddleware");
+
 const upload = require("../config/upload");
 
 /**
  * =====================================================
- * 📝 POST ROUTES (MULTI-TENANT READY)
+ * 📝 POST ROUTES (SaaS READY)
  * =====================================================
- * Responsável por:
- * - CRUD de posts
- * - Agendamento
- * - Aprovação / Rejeição
- * - Métricas
- *
- * 🔐 Proteção:
- * - authMiddleware → usuário autenticado
- * - companyMiddleware → isolamento por empresa
- * - allowRoles → controle de permissões
+ * 🔐 Camadas:
+ * - auth → autenticação
+ * - company → multi-tenant (empresa)
+ * - role → autorização por empresa
+ * - audit → log automático
  * =====================================================
  */
 
@@ -31,9 +29,9 @@ const upload = require("../config/upload");
  */
 router.get(
   "/posts",
-  authMiddleware,
-  companyMiddleware, // 🔥 ISOLAMENTO
-  allowRoles("ADMIN", "USER"),
+  auth,
+  company,
+  role("ADMIN", "EDITOR", "VIEWER"),
   postController.getPosts
 );
 
@@ -44,10 +42,11 @@ router.get(
  */
 router.post(
   "/posts",
-  authMiddleware,
-  companyMiddleware,
-  allowRoles("ADMIN", "USER"),
+  auth,
+  company,
+  role("ADMIN", "EDITOR"),
   upload.single("image"),
+  audit("CREATE_POST"),
   postController.createPost
 );
 
@@ -58,9 +57,10 @@ router.post(
  */
 router.put(
   "/posts/:id",
-  authMiddleware,
-  companyMiddleware,
-  allowRoles("ADMIN", "USER"),
+  auth,
+  company,
+  role("ADMIN", "EDITOR"),
+  audit("UPDATE_POST"),
   postController.updatePost
 );
 
@@ -71,9 +71,10 @@ router.put(
  */
 router.delete(
   "/posts/:id",
-  authMiddleware,
-  companyMiddleware,
-  allowRoles("ADMIN"),
+  auth,
+  company,
+  role("ADMIN"),
+  audit("DELETE_POST"),
   postController.deletePost
 );
 
@@ -84,35 +85,37 @@ router.delete(
  */
 router.put(
   "/posts/:id/schedule",
-  authMiddleware,
-  companyMiddleware,
-  allowRoles("ADMIN", "USER"),
+  auth,
+  company,
+  role("ADMIN", "EDITOR"),
+  audit("SCHEDULE_POST"),
   postController.schedulePost
 );
 
 /**
  * ✅ APROVAR POST
  * -----------------------------------------------------
- * ❗ Apenas ADMIN
+ * ADMIN + EDITOR (workflow real)
  */
 router.put(
   "/posts/:id/approve",
-  authMiddleware,
-  companyMiddleware,
-  allowRoles("ADMIN"),
+  auth,
+  company,
+  role("ADMIN", "EDITOR"),
+  audit("APPROVE_POST"),
   postController.approvePost
 );
 
 /**
  * ❌ REJEITAR POST
  * -----------------------------------------------------
- * ❗ Apenas ADMIN
  */
 router.put(
   "/posts/:id/reject",
-  authMiddleware,
-  companyMiddleware,
-  allowRoles("ADMIN"),
+  auth,
+  company,
+  role("ADMIN", "EDITOR"),
+  audit("REJECT_POST"),
   postController.rejectPost
 );
 
@@ -123,9 +126,9 @@ router.put(
  */
 router.get(
   "/posts/metrics",
-  authMiddleware,
-  companyMiddleware,
-  allowRoles("ADMIN"),
+  auth,
+  company,
+  role("ADMIN"),
   postController.getMetrics
 );
 

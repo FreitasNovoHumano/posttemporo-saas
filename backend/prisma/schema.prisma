@@ -277,3 +277,16 @@ model RefreshToken {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+model Invite {
+  id        String   @id @default(uuid())
+  email     String
+  companyId String
+  role      CompanyRole
+  token     String   @unique
+
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id])
+}
