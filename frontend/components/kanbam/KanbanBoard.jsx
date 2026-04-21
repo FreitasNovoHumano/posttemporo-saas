@@ -7,7 +7,7 @@
  * Responsável por:
  * - Gerenciar drag & drop
  * - Distribuir posts por status
- * - Disparar atualização no backend
+ * - Disparar atualização otimista
  *
  * Props:
  * - posts: lista de posts
@@ -40,11 +40,21 @@ export default function KanbanBoard({ posts, onMove }) {
 
     const postId = result.draggableId;
     const newStatus = result.destination.droppableId;
+    const oldStatus = result.source.droppableId;
 
     /**
-     * 🔥 Chama integração com backend
+     * ⚠️ Evita re-render desnecessário
      */
-    onMove(postId, newStatus);
+    if (newStatus === oldStatus) return;
+
+    /**
+     * 🔥 ENVIA OBJETO (PADRÃO CORRETO)
+     */
+    onMove({
+      postId,
+      newStatus,
+      oldStatus,
+    });
   }
 
   return (

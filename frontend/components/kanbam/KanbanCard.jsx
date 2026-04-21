@@ -11,7 +11,7 @@
 
 export default function KanbanCard({ post }) {
   return (
-    <div className="bg-white p-3 mb-3 rounded-lg shadow hover:shadow-md transition">
+    <div className="bg-white p-3 mb-3 rounded-lg shadow hover:shadow-md transition-all duration-200 cursor-grab active:cursor-grabbing opacity-70">
       <h4 className="font-semibold text-sm">{post.title}</h4>
 
       {post.description && (
