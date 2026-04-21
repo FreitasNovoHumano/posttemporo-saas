@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import toast from "react-hot-toast";
 
 import Notifications from "@/components/notifications/Notifications";
 import Timeline from "@/components/timeline/Timeline";
@@ -8,13 +9,12 @@ import Timeline from "@/components/timeline/Timeline";
 import PageTransition from "@/app/components/ui/PageTransition";
 import Skeleton from "@/app/components/ui/Skeleton";
 
+import useSocket from "@/hooks/useSocket";
+import { useCompany } from "@/context/CompanyContext";
+
 /**
  * =====================================================
- * 📊 DASHBOARD (SaaS READY)
- * =====================================================
- * - Timeline de atividades
- * - Integração com multi-tenant
- * - Loading profissional
+ * 📊 DASHBOARD (REALTIME + UX PRO)
  * =====================================================
  */
 
@@ -22,16 +22,20 @@ export default function Dashboard() {
   const [timeline, setTimeline] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const { companyId } = useCompany();
+
   /**
    * 🔥 Carregar timeline
    */
   useEffect(() => {
+    if (!companyId) return;
+
     async function fetchTimeline() {
       try {
         const res = await fetch("http://localhost:3001/api/timeline", {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token")}`,
-            "x-company-id": localStorage.getItem("companyId"),
+            "x-company-id": companyId,
           },
         });
 
@@ -45,7 +49,36 @@ export default function Dashboard() {
     }
 
     fetchTimeline();
-  }, []);
+  }, [companyId]);
+
+  /**
+   * 🔥 SOCKET TEMPO REAL
+   */
+  useSocket(companyId, (newItem) => {
+    setTimeline((prev) => [newItem, ...prev]);
+
+    /**
+     * 🔔 Toast ao vivo
+     */
+    toast.success(
+      `${newItem.user?.name} ${formatAction(newItem.action)}`
+    );
+  });
+
+  /**
+   * 🔥 Marcar como lido ao abrir
+   */
+  useEffect(() => {
+    if (!companyId) return;
+
+    fetch("http://localhost:3001/api/timeline/read", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+        "x-company-id": companyId,
+      },
+    }).catch(() => {});
+  }, [companyId]);
 
   /**
    * 🔄 Loading UI
@@ -85,4 +118,20 @@ export default function Dashboard() {
       </div>
     </PageTransition>
   );
+}
+
+/**
+ * 🔹 Helper de texto
+ */
+function formatAction(action) {
+  const map = {
+    CREATE_POST: "criou um post",
+    UPDATE_POST: "atualizou um post",
+    DELETE_POST: "deletou um post",
+    APPROVE_POST: "aprovou um post",
+    REJECT_POST: "rejeitou um post",
+    SCHEDULE_POST: "agendou um post",
+  };
+
+  return map[action] || action;
 }

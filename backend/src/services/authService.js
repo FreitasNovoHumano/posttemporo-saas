@@ -1,25 +1,19 @@
 const prisma = require("../lib/prisma");
+const { io } = require("../server"); // 🔥 realtime
 
 /**
  * =====================================================
- * 📜 AUDIT SERVICE (LOG DE AÇÕES)
+ * 📜 AUDIT SERVICE (PRO + REALTIME)
  * =====================================================
- * Responsável por:
- * - Registrar ações do sistema
- * - Garantir isolamento por empresa (multi-tenant)
- * - Permitir auditoria detalhada
+ * - Log de ações
+ * - Multi-tenant seguro
+ * - Emissão em tempo real
+ * - Preparado para auditoria avançada
  * =====================================================
  */
 
 /**
  * 🔹 Registrar ação no sistema
- *
- * @param {Object} params
- * @param {string} params.action - Ação realizada (ex: CREATE_POST)
- * @param {number} params.postId - ID do post relacionado
- * @param {string} params.userId - ID do usuário que executou
- * @param {string} params.companyId - ID da empresa (multi-tenant)
- * @param {Object} [params.meta] - Dados extras (opcional)
  */
 async function logAction({ action, postId, userId, companyId, meta }) {
   /**
@@ -36,29 +30,47 @@ async function logAction({ action, postId, userId, companyId, meta }) {
     throw new Error("Post não encontrado ou não pertence à empresa");
   }
 
-  return prisma.auditLog.create({
+  /**
+   * 📝 Criar log com include (IMPORTANTE pra timeline)
+   */
+  const log = await prisma.auditLog.create({
     data: {
       action,
       postId,
       userId,
-      /**
-       * 💡 Se quiser evoluir:
-       * adicionar campo JSON no schema → meta Json?
-       */
+      // 🔥 se adicionar no prisma:
+      // meta,
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
+      post: {
+        select: {
+          id: true,
+          title: true,
+        },
+      },
     },
   });
+
+  /**
+   * 🔥 TEMPO REAL (por empresa)
+   */
+  if (io && companyId) {
+    io.to(`company:${companyId}`).emit("timeline:update", log);
+  }
+
+  return log;
 }
 
 /**
- * 🔹 Buscar histórico de um post (multi-tenant seguro)
- *
- * @param {number} postId
- * @param {string} companyId
+ * 🔹 Buscar histórico de um post
  */
 async function getLogsByPost(postId, companyId) {
-  /**
-   * 🔒 Garante isolamento por empresa
-   */
   const post = await prisma.post.findFirst({
     where: {
       id: Number(postId),
@@ -90,9 +102,7 @@ async function getLogsByPost(postId, companyId) {
 }
 
 /**
- * 🔹 Buscar logs da empresa inteira (admin/debug)
- *
- * @param {string} companyId
+ * 🔹 Buscar logs da empresa inteira (timeline)
  */
 async function getCompanyLogs(companyId) {
   return prisma.auditLog.findMany({
@@ -102,7 +112,12 @@ async function getCompanyLogs(companyId) {
       },
     },
     include: {
-      user: true,
+      user: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
       post: {
         select: {
           id: true,
@@ -113,6 +128,7 @@ async function getCompanyLogs(companyId) {
     orderBy: {
       createdAt: "desc",
     },
+    take: 50, // 🔥 limite pra performance
   });
 }
 

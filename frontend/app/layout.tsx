@@ -2,11 +2,15 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-// 🔹 Contexto global
+// 🔹 Contextos globais
 import { AuthProvider } from "../context/AuthContext";
+import { CompanyProvider } from "../context/CompanyContext";
+
+// 🔔 Toast global
+import { Toaster } from "react-hot-toast";
 
 /**
- * 🔤 Configuração de fontes (Next.js otimizado)
+ * 🔤 Fontes otimizadas
  */
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,7 +23,7 @@ const geistMono = Geist_Mono({
 });
 
 /**
- * 📄 Metadata global da aplicação
+ * 📄 Metadata
  */
 export const metadata: Metadata = {
   title: "PostTempero",
@@ -27,16 +31,7 @@ export const metadata: Metadata = {
 };
 
 /**
- * 🧠 RootLayout (Server Component)
- * --------------------------------------------------
- * Responsável por:
- * - Estrutura HTML base
- * - Fontes globais
- * - Providers globais (Auth, Theme, etc)
- *
- * ❌ NÃO deve conter:
- * - Componentes de página (Dashboard, Posts, etc)
- * - Lógica de UI específica
+ * 🧠 RootLayout
  */
 export default function RootLayout({
   children,
@@ -47,9 +42,27 @@ export default function RootLayout({
     <html lang="pt-BR">
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         
-        {/* 🔐 Provider global de autenticação */}
+        {/* 🔐 Auth global */}
         <AuthProvider>
-          {children}
+
+          {/* 🏢 Multi-tenant (empresa ativa) */}
+          <CompanyProvider>
+
+            {children}
+
+            {/* 🔔 Toast global (tempo real) */}
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                duration: 3000,
+                style: {
+                  background: "#333",
+                  color: "#fff",
+                },
+              }}
+            />
+
+          </CompanyProvider>
         </AuthProvider>
 
       </body>

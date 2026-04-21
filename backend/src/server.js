@@ -1,12 +1,6 @@
 /**
  * =====================================================
- * 🚀 SERVER - API POSTTEMPERO (PRO)
- * =====================================================
- * Responsável por:
- * - Configurar middlewares globais
- * - Registrar rotas
- * - Subir servidor HTTP + WebSocket
- * - Inicializar jobs (cron)
+ * 🚀 SERVER - API POSTTEMPERO (SaaS PRO)
  * =====================================================
  */
 
@@ -22,36 +16,52 @@ const { Server } = require("socket.io");
 const app = express();
 
 /**
- * 🔹 Criar servidor HTTP (necessário pro socket.io)
+ * 🔹 HTTP Server (necessário para WebSocket)
  */
 const server = http.createServer(app);
 
 /**
  * =====================================================
- * 🔌 SOCKET.IO (TEMPO REAL)
+ * 🔌 SOCKET.IO (TEMPO REAL MULTI-TENANT)
  * =====================================================
  */
 const io = new Server(server, {
   cors: {
     origin: "http://localhost:3000",
+    methods: ["GET", "POST"],
   },
 });
+
+/**
+ * 🔥 EXPORT GLOBAL (services/controllers)
+ */
+module.exports.io = io;
 
 /**
  * 🔹 Conexão WebSocket
  */
 io.on("connection", (socket) => {
-  console.log("🟢 Usuário conectado:", socket.id);
+  console.log("🟢 Socket conectado:", socket.id);
 
+  /**
+   * 🏢 Entrar em uma empresa (ROOM)
+   */
+  socket.on("join_company", (companyId) => {
+    if (!companyId) return;
+
+    const room = `company:${companyId}`;
+    socket.join(room);
+
+    console.log(`📦 Socket ${socket.id} entrou na sala ${room}`);
+  });
+
+  /**
+   * ❌ Desconexão
+   */
   socket.on("disconnect", () => {
-    console.log("🔴 Usuário desconectado:", socket.id);
+    console.log("🔴 Socket desconectado:", socket.id);
   });
 });
-
-/**
- * 🔥 EXPORTAR IO (para usar nos controllers/services)
- */
-module.exports.io = io;
 
 /**
  * =====================================================
@@ -62,7 +72,11 @@ app.use(
   cors({
     origin: "http://localhost:3000",
     methods: ["GET", "POST", "PUT", "DELETE"],
-    allowedHeaders: ["Content-Type", "Authorization"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "x-company-id", // 🔥 IMPORTANTE pro multi-tenant
+    ],
   })
 );
 
@@ -75,20 +89,27 @@ app.use(express.json());
 
 /**
  * =====================================================
- * 📦 ROTAS
+ * 📦 ROTAS (PADRÃO API)
  * =====================================================
  */
 const authRoutes = require("./routes/authRoutes");
 const postRoutes = require("./routes/postRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
-const notificationRoutes = require("./routes/notificationRoutes"); // 🔥 novo
+const notificationRoutes = require("./routes/notificationRoutes");
 const commentRoutes = require("./routes/commentRoutes");
+const timelineRoutes = require("./routes/timelineRoutes"); // 🔥 novo
+const inviteRoutes = require("./routes/inviteRoutes"); // 🔥 novo
 
-app.use("/auth", authRoutes);
-app.use("/posts", postRoutes);
-app.use("/dashboard", dashboardRoutes);
-app.use("/notifications", notificationRoutes);
-app.use("/comments", commentRoutes);
+/**
+ * 🔥 Prefixo global (recomendado)
+ */
+app.use("/api/auth", authRoutes);
+app.use("/api/posts", postRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/comments", commentRoutes);
+app.use("/api/timeline", timelineRoutes);
+app.use("/api/invite", inviteRoutes);
 
 /**
  * =====================================================
@@ -131,7 +152,7 @@ app.use((err, req, res, next) => {
  */
 const startPublishPostsJob = require("./jobs/publishPosts.job");
 
-startPublishPostsJob(io); // 🔥 passa io para emitir eventos
+startPublishPostsJob(io);
 
 /**
  * =====================================================
