@@ -1,50 +1,65 @@
 /**
- * 📦 CONTROLLER — POSTS
- * ----------------------------------------
- * Responsável por:
- * ✔ Criar post
- * ✔ Listar posts (com filtro)
- * ✔ Atualizar post
- * ✔ Deletar post
- * ✔ Agendar post
- * ✔ Aprovar / Rejeitar
- * ✔ Métricas
+ * =====================================================
+ * 📦 CONTROLLER — POSTS (PRO)
+ * =====================================================
+ * - Upload S3 + compressão
+ * - Multi-tenant
+ * - Resposta padronizada
+ * =====================================================
  */
 
 const postService = require("../services/postService");
+const uploadService = require("../services/uploadService");
 
 /**
  * 🧱 Helper de erro padrão
  */
 function handleError(res, error, message = "Erro interno") {
   console.error(`❌ ${message}:`, error);
+
   return res.status(500).json({
-    error: error.message || message,
+    success: false,
+    message,
+    error: error.message,
   });
 }
 
 /**
- * 🔹 Criar post (com upload de imagem)
+ * 🔹 Criar post (com upload S3)
  */
 async function createPost(req, res) {
   try {
-    const { title, description } = req.body;
+    const { title, content } = req.body;
 
     if (!title) {
       return res.status(400).json({
-        error: "Título é obrigatório",
+        success: false,
+        message: "Título é obrigatório",
       });
     }
 
-    const data = {
-      title,
-      description,
-      image: req.file ? req.file.filename : null,
-    };
+    /**
+     * ☁️ Upload imagem (S3 + compressão)
+     */
+    let imageUrl = null;
 
-    const post = await postService.createPost(data, req.userId);
+    if (req.file) {
+      imageUrl = await uploadService.uploadImage(req.file);
+    }
+
+    /**
+     * 🔥 MULTI-TENANT CONTEXT
+     */
+    const post = await postService.createPost({
+      title,
+      content,
+      imageUrl,
+      authorId: req.user.id,
+      companyId: req.companyId,
+    });
 
     return res.status(201).json({
+      success: true,
       message: "Post criado com sucesso",
       data: post,
     });
@@ -55,27 +70,22 @@ async function createPost(req, res) {
 }
 
 /**
- * 🔹 Listar posts (com filtro e busca)
- * -----------------------------------------------------
- * Query params:
- * ?status=APPROVED
- * ?search=marketing
+ * 🔹 Listar posts
  */
 async function getPosts(req, res) {
   try {
     const { status, search } = req.query;
 
-    /**
-     * 🔥 Toda lógica fica no service (padrão profissional)
-     */
     const posts = await postService.getPosts({
-      userId: req.userId,
-      role: req.user?.role,
+      userId: req.user.id,
+      companyId: req.companyId,
+      role: req.role,
       status,
       search,
     });
 
     return res.json({
+      success: true,
       data: posts,
     });
 
@@ -90,16 +100,31 @@ async function getPosts(req, res) {
 async function updatePost(req, res) {
   try {
     const { id } = req.params;
-    const { title, description } = req.body;
+    const { title, content } = req.body;
 
-    const post = await postService.updatePost(
+    /**
+     * 🔥 Atualiza imagem se vier nova
+     */
+    let imageUrl;
+
+    if (req.file) {
+      imageUrl = await uploadService.uploadImage(req.file);
+    }
+
+    const post = await postService.updatePost({
       id,
-      { title, description },
-      req.userId,
-      req.user?.role
-    );
+      data: {
+        title,
+        content,
+        ...(imageUrl && { imageUrl }),
+      },
+      userId: req.user.id,
+      role: req.role,
+      companyId: req.companyId,
+    });
 
     return res.json({
+      success: true,
       message: "Post atualizado",
       data: post,
     });
@@ -111,19 +136,20 @@ async function updatePost(req, res) {
 
 /**
  * 🔹 Deletar post
- * ❗ ADMIN pode deletar qualquer post
  */
 async function deletePost(req, res) {
   try {
     const { id } = req.params;
 
-    await postService.deletePost(
+    await postService.deletePost({
       id,
-      req.userId,
-      req.user?.role
-    );
+      userId: req.user.id,
+      role: req.role,
+      companyId: req.companyId,
+    });
 
     return res.json({
+      success: true,
       message: "Post deletado com sucesso",
     });
 
@@ -133,7 +159,7 @@ async function deletePost(req, res) {
 }
 
 /**
- * 🔹 Agendar post (usado no calendário)
+ * 🔹 Agendar post
  */
 async function schedulePost(req, res) {
   try {
@@ -142,17 +168,20 @@ async function schedulePost(req, res) {
 
     if (!date) {
       return res.status(400).json({
-        error: "Data é obrigatória",
+        success: false,
+        message: "Data é obrigatória",
       });
     }
 
-    const post = await postService.schedulePost(
+    const post = await postService.schedulePost({
       id,
       date,
-      req.userId
-    );
+      userId: req.user.id,
+      companyId: req.companyId,
+    });
 
     return res.json({
+      success: true,
       message: "Post agendado com sucesso",
       data: post,
     });
@@ -163,18 +192,20 @@ async function schedulePost(req, res) {
 }
 
 /**
- * 🔹 Aprovar post (ADMIN)
+ * 🔹 Aprovar post
  */
 async function approvePost(req, res) {
   try {
     const { id } = req.params;
 
-    const post = await postService.approvePost(
+    const post = await postService.approvePost({
       id,
-      req.userId
-    );
+      userId: req.user.id,
+      companyId: req.companyId,
+    });
 
     return res.json({
+      success: true,
       message: "Post aprovado",
       data: post,
     });
@@ -185,20 +216,22 @@ async function approvePost(req, res) {
 }
 
 /**
- * 🔹 Rejeitar post (ADMIN)
+ * 🔹 Rejeitar post
  */
 async function rejectPost(req, res) {
   try {
     const { id } = req.params;
     const { comment } = req.body;
 
-    const post = await postService.rejectPost(
+    const post = await postService.rejectPost({
       id,
       comment,
-      req.userId
-    );
+      userId: req.user.id,
+      companyId: req.companyId,
+    });
 
     return res.json({
+      success: true,
       message: "Post rejeitado",
       data: post,
     });
@@ -209,13 +242,17 @@ async function rejectPost(req, res) {
 }
 
 /**
- * 🔹 Métricas do dashboard
+ * 🔹 Métricas
  */
 async function getMetrics(req, res) {
   try {
-    const metrics = await postService.getMetrics(req.userId);
+    const metrics = await postService.getMetrics({
+      userId: req.user.id,
+      companyId: req.companyId,
+    });
 
     return res.json({
+      success: true,
       data: metrics,
     });
 
@@ -224,9 +261,6 @@ async function getMetrics(req, res) {
   }
 }
 
-/**
- * 📦 EXPORTAÇÃO
- */
 module.exports = {
   createPost,
   getPosts,

@@ -45,6 +45,8 @@ router.post(
   auth,
   company,
   role("ADMIN", "EDITOR"),
+  authMiddleware,
+  companyMiddleware,
   upload.single("image"),
   audit("CREATE_POST"),
   postController.createPost

@@ -1,47 +1,46 @@
 const multer = require("multer");
-const path = require("path");
 
 /**
- * 📦 Caminho absoluto da pasta uploads
+ * =====================================================
+ * 📦 UPLOAD CONFIG (PRO - MEMORY STORAGE)
+ * =====================================================
+ * - Não salva em disco
+ * - Permite compressão com sharp
+ * - Pronto para envio ao S3
+ * =====================================================
  */
-const uploadPath = path.resolve(__dirname, "../../uploads");
 
 /**
- * 📦 Configuração de armazenamento
+ * 🧠 Armazena em memória (buffer)
  */
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadPath);
-  },
-
-  filename: (req, file, cb) => {
-    const uniqueName =
-      Date.now() + "-" + Math.round(Math.random() * 1e9);
-
-    const extension = path.extname(file.originalname);
-
-    cb(null, uniqueName + extension);
-  },
-});
+const storage = multer.memoryStorage();
 
 /**
- * 🛡️ Filtro de arquivos (AGORA DEFINIDO 🔥)
+ * 🛡️ Filtro de arquivos (segurança)
  */
 function fileFilter(req, file, cb) {
-  const allowedTypes = ["image/jpeg", "image/png", "image/jpg"];
+  const allowedTypes = [
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+  ];
 
   if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error("Apenas imagens JPG ou PNG são permitidas"));
+    cb(
+      new Error(
+        "Formato inválido. Use JPG, PNG ou WEBP."
+      )
+    );
   }
 }
 
 /**
- * 📏 Limite de tamanho
+ * 📏 Limite de tamanho (5MB)
  */
 const limits = {
-  fileSize: 5 * 1024 * 1024, // 5MB
+  fileSize: 5 * 1024 * 1024,
 };
 
 /**
