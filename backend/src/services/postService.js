@@ -1,17 +1,71 @@
 const prisma = require("../lib/prisma");
 
 /**
- * 📌 ENUM de status
+ * =====================================================
+ * 📌 ENUM DE STATUS (PADRÃO DO SISTEMA)
+ * =====================================================
  */
 const STATUS = {
+  DRAFT: "DRAFT",
   PENDING: "PENDING",
   APPROVED: "APPROVED",
   REJECTED: "REJECTED",
   SCHEDULED: "SCHEDULED",
+  PUBLISHED: "PUBLISHED",
 };
 
 /**
- * 🔹 Criar post
+ * =====================================================
+ * 🧠 HELPER — STATUS AUTOMÁTICO
+ * =====================================================
+ * Regras:
+ * - Sem data → DRAFT
+ * - Data futura → SCHEDULED
+ * - Data passada → PUBLISHED
+ */
+function getStatusByDate(date) {
+  if (!date) return STATUS.DRAFT;
+
+  const now = new Date();
+  const target = new Date(date);
+
+  if (target > now) return STATUS.SCHEDULED;
+
+  return STATUS.PUBLISHED;
+}
+
+/**
+ * =====================================================
+ * 🔍 HELPER — BUSCAR POST COM SEGURANÇA
+ * =====================================================
+ */
+async function findPostOrThrow(id) {
+  const post = await prisma.post.findUnique({
+    where: { id: Number(id) },
+  });
+
+  if (!post) {
+    throw new Error("Post não encontrado");
+  }
+
+  return post;
+}
+
+/**
+ * =====================================================
+ * 🔐 HELPER — AUTORIZAÇÃO
+ * =====================================================
+ */
+function checkPermission(post, userId, role) {
+  if (role !== "ADMIN" && post.userId !== userId) {
+    throw new Error("Não autorizado");
+  }
+}
+
+/**
+ * =====================================================
+ * 🔹 CRIAR POST
+ * =====================================================
  */
 async function createPost(data, userId) {
   if (!data?.title?.trim()) {
@@ -23,21 +77,23 @@ async function createPost(data, userId) {
       title: data.title.trim(),
       description: data.description?.trim() || "",
       image: data.image || null,
-      status: STATUS.PENDING,
+      status: STATUS.DRAFT,
       userId,
     },
   });
 }
 
 /**
- * 🔹 Listar posts (com filtro + role)
+ * =====================================================
+ * 🔹 LISTAR POSTS (FILTRO + ROLE)
+ * =====================================================
  */
 async function getPosts({ userId, role, status, search }) {
   if (!userId) throw new Error("Usuário não autenticado");
 
   return prisma.post.findMany({
     where: {
-      ...(role !== "ADMIN" && { userId }), // 🔥 admin vê tudo
+      ...(role !== "ADMIN" && { userId }),
       ...(status && { status }),
       ...(search && {
         title: {
@@ -51,20 +107,24 @@ async function getPosts({ userId, role, status, search }) {
 }
 
 /**
- * 🔹 Métricas inteligentes (dashboard)
+ * =====================================================
+ * 🔹 MÉTRICAS (DASHBOARD INTELIGENTE)
+ * =====================================================
  */
 async function getMetrics(userId) {
   if (!userId) throw new Error("Usuário não autenticado");
 
-  const [posts, approved, pending, scheduled] = await Promise.all([
-    prisma.post.count({ where: { userId } }),
-    prisma.post.count({ where: { userId, status: STATUS.APPROVED } }),
-    prisma.post.count({ where: { userId, status: STATUS.PENDING } }),
-    prisma.post.count({ where: { userId, status: STATUS.SCHEDULED } }),
-  ]);
+  const [posts, approved, pending, scheduled, published] =
+    await Promise.all([
+      prisma.post.count({ where: { userId } }),
+      prisma.post.count({ where: { userId, status: STATUS.APPROVED } }),
+      prisma.post.count({ where: { userId, status: STATUS.PENDING } }),
+      prisma.post.count({ where: { userId, status: STATUS.SCHEDULED } }),
+      prisma.post.count({ where: { userId, status: STATUS.PUBLISHED } }),
+    ]);
 
   /**
-   * 📊 Histórico por dia (dashboard avançado)
+   * 📊 Histórico por dia
    */
   const history = await prisma.$queryRaw`
     SELECT DATE("createdAt") as date, COUNT(*) as total
@@ -79,63 +139,90 @@ async function getMetrics(userId) {
     approved,
     pending,
     scheduled,
+    published,
     history,
   };
 }
 
 /**
- * 🔹 Aprovar post
+ * =====================================================
+ * 🔹 APROVAR POST
+ * =====================================================
  */
 async function approvePost(postId, userId) {
-  const id = Number(postId);
+  const post = await findPostOrThrow(postId);
 
-  const post = await prisma.post.findUnique({ where: { id } });
-
-  if (!post) throw new Error("Post não encontrado");
-  if (post.userId !== userId) throw new Error("Não autorizado");
+  if (post.userId !== userId) {
+    throw new Error("Não autorizado");
+  }
 
   return prisma.post.update({
-    where: { id },
+    where: { id: Number(postId) },
     data: {
       status: STATUS.APPROVED,
       rejectionComment: null,
     },
   });
+
+   const updated = await prisma.post.update({
+    where: { id: Number(postId) },
+    data: {
+      status: STATUS.APPROVED,
+      rejectionComment: null,
+    },
+  });
+
+  /**
+   * 🔔 NOTIFICAÇÃO
+   */
+  await prisma.notification.create({
+    data: {
+      userId: post.userId,
+      message: "Post aprovado!",
+    },
+  });
+
+  return updated;
 }
 
+
 /**
- * 🔹 Rejeitar post
+ * =====================================================
+ * 🔹 REJEITAR POST
+ * =====================================================
  */
 async function rejectPost(postId, comment, userId) {
-  const id = Number(postId);
+  const post = await findPostOrThrow(postId);
 
-  const post = await prisma.post.findUnique({ where: { id } });
-
-  if (!post) throw new Error("Post não encontrado");
-  if (post.userId !== userId) throw new Error("Não autorizado");
+  if (post.userId !== userId) {
+    throw new Error("Não autorizado");
+  }
 
   return prisma.post.update({
-    where: { id },
+    where: { id: Number(postId) },
     data: {
       status: STATUS.REJECTED,
       rejectionComment: comment?.trim() || "Sem comentário",
     },
   });
+
+  await prisma.notification.create({
+  data: {
+    userId: post.userId,
+    message: "Post rejeitado",
+  },
+});
 }
 
 /**
- * 🔹 Atualizar post
+ * =====================================================
+ * 🔹 ATUALIZAR POST
+ * =====================================================
  */
 async function updatePost(id, data, userId, role) {
-  const post = await prisma.post.findUnique({
-    where: { id: Number(id) },
-  });
+  const post = await findPostOrThrow(id);
 
-  if (!post) throw new Error("Post não encontrado");
-
-  if (role !== "ADMIN" && post.userId !== userId) {
-    throw new Error("Não autorizado");
-  }
+  checkPermission(post, userId, role);
 
   return prisma.post.update({
     where: { id: Number(id) },
@@ -147,18 +234,14 @@ async function updatePost(id, data, userId, role) {
 }
 
 /**
- * 🔹 Deletar post
+ * =====================================================
+ * 🔹 DELETAR POST
+ * =====================================================
  */
 async function deletePost(id, userId, role) {
-  const post = await prisma.post.findUnique({
-    where: { id: Number(id) },
-  });
+  const post = await findPostOrThrow(id);
 
-  if (!post) throw new Error("Post não encontrado");
-
-  if (role !== "ADMIN" && post.userId !== userId) {
-    throw new Error("Não autorizado");
-  }
+  checkPermission(post, userId, role);
 
   return prisma.post.delete({
     where: { id: Number(id) },
@@ -166,27 +249,32 @@ async function deletePost(id, userId, role) {
 }
 
 /**
- * 🔹 Agendar post (CALENDÁRIO)
+ * =====================================================
+ * 🔹 AGENDAR POST (COM STATUS AUTOMÁTICO)
+ * =====================================================
  */
 async function schedulePost(id, date, userId) {
-  const post = await prisma.post.findUnique({
-    where: { id: Number(id) },
-  });
+  const post = await findPostOrThrow(id);
 
-  if (!post) throw new Error("Post não encontrado");
-  if (post.userId !== userId) throw new Error("Não autorizado");
+  if (post.userId !== userId) {
+    throw new Error("Não autorizado");
+  }
+
+  const status = getStatusByDate(date);
 
   return prisma.post.update({
     where: { id: Number(id) },
     data: {
       scheduledDate: new Date(date),
-      status: STATUS.SCHEDULED, // 🔥 importante pro calendário
+      status, // 🔥 agora automático
     },
   });
 }
 
 /**
+ * =====================================================
  * 📦 EXPORTAÇÃO
+ * =====================================================
  */
 module.exports = {
   createPost,
