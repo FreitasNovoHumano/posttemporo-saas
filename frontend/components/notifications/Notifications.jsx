@@ -1,81 +1,124 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useCompany } from "@/context/CompanyContext";
 import useNotifications from "@/hooks/useNotifications";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL;
+import groupNotifications from "@/utils/groupNotifications";
 
 /**
  * =====================================================
- * 🔔 NOTIFICATIONS (REALTIME + LIST)
+ * 🔔 NOTIFICATIONS (PRO - INSTAGRAM STYLE)
+ * =====================================================
+ * - Realtime
+ * - Infinite scroll
+ * - Badge contador 🔴
+ * - Dropdown interativo
+ * - Cache via React Query
  * =====================================================
  */
 
 export default function Notifications() {
-  const [notifications, setNotifications] = useState([]);
+  const [open, setOpen] = useState(false);
+
+  const loaderRef = useRef(null);
 
   const { companyId } = useCompany();
-  const { unreadCount } = useNotifications(companyId);
+
+  const {
+    notifications,
+    unreadCount,
+    loadMore,
+    hasMore,
+    isLoading,
+  } = useNotifications(companyId);
+
+  const grouped = groupNotifications(notifications);
 
   /**
-   * 🔹 Buscar notificações do backend
+   * 🔥 Infinite Scroll (Intersection Observer)
    */
   useEffect(() => {
-    async function fetchNotifications() {
-      try {
-        const res = await fetch(`${API_URL}/notifications`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-          },
-        });
+    if (!loaderRef.current) return;
 
-        const json = await res.json();
-        setNotifications(json || []);
-      } catch (error) {
-        console.error("Erro ao buscar notificações:", error);
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && hasMore) {
+        loadMore();
       }
-    }
+    });
 
-    fetchNotifications();
-  }, []);
+    observer.observe(loaderRef.current);
+
+    return () => observer.disconnect();
+  }, [hasMore, loadMore]);
 
   return (
-    <div className="bg-white p-4 rounded-xl shadow relative">
-      {/* 🔔 Header */}
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="font-bold">Notificações</h3>
+    <div className="relative">
+      {/* 🔔 BOTÃO */}
+      <button
+        onClick={() => setOpen((prev) => !prev)}
+        className="relative"
+      >
+        🔔
 
         {/* 🔴 Badge */}
-        <div className="relative">
-          🔔
-          {unreadCount > 0 && (
-            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs px-2 rounded-full">
-              {unreadCount}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* 📄 Lista */}
-      <div className="space-y-2">
-        {notifications.length === 0 ? (
-          <p className="text-sm text-gray-500">
-            Nenhuma notificação
-          </p>
-        ) : (
-          notifications.map((n) => (
-            <div
-              key={n.id}
-              className={`text-sm border-b py-2 ${
-                n.read ? "text-gray-500" : "font-semibold"
-              }`}
-            >
-              {n.message}
-            </div>
-          ))
+        {unreadCount > 0 && (
+          <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs px-2 rounded-full">
+            {unreadCount}
+          </span>
         )}
-      </div>
+      </button>
+
+      {/* 📥 DROPDOWN */}
+      {open && (
+        <div className="absolute right-0 mt-2 w-80 bg-white shadow-lg rounded-lg p-4 z-50">
+          {/* 🔹 Header */}
+          <div className="flex justify-between mb-2">
+            <h3 className="font-bold">Notificações</h3>
+          </div>
+
+          {/* 📄 LISTA */}
+          <div className="max-h-80 overflow-y-auto space-y-2">
+            {/* 🔄 Loading inicial */}
+            {isLoading && (
+              <p className="text-sm text-gray-500">
+                Carregando...
+              </p>
+            )}
+
+            {/* ❌ Vazio */}
+            {!isLoading && notifications.length === 0 && (
+              <p className="text-sm text-gray-500">
+                Nenhuma notificação
+              </p>
+            )}
+
+            {/* 🔥 Feed */}
+            {notifications.map((n) => (
+              <div
+                key={n.id}
+                className={`p-2 rounded cursor-pointer transition ${
+                  n.read
+                    ? "bg-gray-100 text-gray-500"
+                    : "bg-blue-50 font-semibold"
+                }`}
+              >
+                {n.message}
+              </div>
+            ))}
+
+            {/* 🔥 Loader infinito */}
+            {hasMore && (
+              <div
+                ref={loaderRef}
+                className="text-center text-xs text-gray-400 py-2"
+              >
+                Carregando mais...
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,68 +1,29 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
+import CompanySwitcher from "./CompanySwitcher";
+import Notifications from "@/components/notifications/Notifications";
 
-export default function Sidebar() {
-  const pathname = usePathname();
-  const [open, setOpen] = useState(false);
+/**
+ * =====================================================
+ * 🔝 HEADER (SaaS UI)
+ * =====================================================
+ * - Logo
+ * - Troca de empresa
+ * - Notificações (realtime)
+ * =====================================================
+ */
 
-  const menu = [
-    { name: "📊 Dashboard", href: "/dashboard" },
-    { name: "🧱 Kanban", href: "/kanban" },
-    { name: "📅 Calendário", href: "/calendar" },
-  ];
-
+export default function Header() {
   return (
-    <>
-      {/* MOBILE BUTTON */}
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed top-4 left-4 z-50 bg-white p-2 rounded shadow md:hidden"
-      >
-        ☰
-      </button>
+    <header className="flex items-center justify-between px-6 py-4 border-b bg-white shadow-sm">
+      {/* 🔹 Logo */}
+      <h1 className="text-lg font-bold">PostTempero</h1>
 
-      {/* SIDEBAR */}
-      <aside
-        className={`
-          fixed md:relative z-40
-          w-64 bg-white shadow-lg p-4 h-full
-          transition-transform
-          ${open ? "translate-x-0" : "-translate-x-full"}
-          md:translate-x-0
-        `}
-      >
-        {/* CLOSE MOBILE */}
-        <button
-          onClick={() => setOpen(false)}
-          className="md:hidden mb-4"
-        >
-          ✖
-        </button>
-
-        <h1 className="text-xl font-bold mb-6">PostTempero</h1>
-
-        <nav className="space-y-2">
-          {menu.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`
-                block p-2 rounded-lg transition
-                ${
-                  pathname === item.href
-                    ? "bg-blue-500 text-white"
-                    : "hover:bg-gray-100"
-                }
-              `}
-            >
-              {item.name}
-            </Link>
-          ))}
-        </nav>
-      </aside>
-    </>
+      {/* 🔹 Ações do usuário */}
+      <div className="flex items-center gap-4">
+        <CompanySwitcher />
+        <Notifications />
+      </div>
+    </header>
   );
 }

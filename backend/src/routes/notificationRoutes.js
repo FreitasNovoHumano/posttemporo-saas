@@ -6,13 +6,21 @@ const authMiddleware = require("../middlewares/authMiddleware");
 /**
  * 🔔 LISTAR NOTIFICAÇÕES
  */
-router.get("/notifications", authMiddleware, async (req, res) => {
+router.get("/", auth, async (req, res) => {
+  const { page = 1, limit = 10 } = req.query;
+
   const notifications = await prisma.notification.findMany({
-    where: { userId: req.userId },
-    orderBy: { createdAt: "desc" },
+    where: {
+      userId: req.user.id,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    skip: (page - 1) * limit,
+    take: Number(limit),
   });
 
-  res.json({ data: notifications });
+  res.json(notifications);
 });
 
 module.exports = router;

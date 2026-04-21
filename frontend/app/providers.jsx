@@ -3,6 +3,14 @@
 import { DndProvider } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+const queryClient = new QueryClient();
+
+<QueryClientProvider client={queryClient}>
+  {children}
+</QueryClientProvider>
+
 export function Providers({ children }) {
   return (
     <DndProvider backend={HTML5Backend}>
