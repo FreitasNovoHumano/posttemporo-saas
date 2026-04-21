@@ -2,81 +2,108 @@
 
 /**
  * =====================================================
- * 📊 COMPONENT — STATS CARDS
+ * 💎 COMPONENT — STATS CARDS (PREMIUM UI)
  * =====================================================
  * Responsável por:
  * - Exibir métricas do dashboard
- * - Mostrar resumo visual dos posts
+ * - Mostrar resumo visual com design moderno
  *
  * Props:
- * - metrics: { posts, scheduled, published }
+ * - metrics:
+ *   {
+ *     posts: number;
+ *     scheduled: number;
+ *     approved: number;
+ *     pending: number;
+ *   }
+ *
  * =====================================================
  */
 
 /**
- * 🔹 Tipagem das métricas
+ * 🔹 Tipagem atualizada (alinhada com backend novo)
  */
 interface StatsCardsProps {
   metrics: {
     posts: number;
     scheduled: number;
-    published: number;
+    approved: number;
+    pending: number;
   };
 }
 
 export default function StatsCards({ metrics }: StatsCardsProps) {
   return (
-    <div
-      style={{
-        display: "flex",
-        gap: "16px",
-        flexWrap: "wrap",
-      }}
-    >
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
       {/* ================================
           📄 TOTAL DE POSTS
          ================================ */}
-      <div style={cardStyle}>
-        <h4>📄 Total de Posts</h4>
-        <p style={valueStyle}>{metrics.posts}</p>
-      </div>
+      <Card
+        title="Total de Posts"
+        value={metrics.posts}
+        icon="📄"
+        bg="bg-blue-50"
+      />
 
       {/* ================================
           📅 AGENDADOS
          ================================ */}
-      <div style={cardStyle}>
-        <h4>📅 Agendados</h4>
-        <p style={valueStyle}>{metrics.scheduled}</p>
-      </div>
+      <Card
+        title="Agendados"
+        value={metrics.scheduled}
+        icon="📅"
+        bg="bg-yellow-50"
+      />
 
       {/* ================================
-          🚀 PUBLICADOS
+          ✅ APROVADOS
          ================================ */}
-      <div style={cardStyle}>
-        <h4>🚀 Publicados</h4>
-        <p style={valueStyle}>{metrics.published}</p>
-      </div>
+      <Card
+        title="Aprovados"
+        value={metrics.approved}
+        icon="✅"
+        bg="bg-green-50"
+      />
+
+      {/* ================================
+          ⏳ PENDENTES
+         ================================ */}
+      <Card
+        title="Pendentes"
+        value={metrics.pending}
+        icon="⏳"
+        bg="bg-gray-100"
+      />
     </div>
   );
 }
 
 /**
- * 🎨 Estilo base dos cards
+ * 🧱 CARD REUTILIZÁVEL
+ * -----------------------------------------------------
+ * - Evita repetição de código
+ * - Facilita expansão futura
  */
-const cardStyle: React.CSSProperties = {
-  flex: "1",
-  minWidth: "180px",
-  padding: "16px",
-  borderRadius: "10px",
-  background: "#f5f5f5",
-  boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
-};
+interface CardProps {
+  title: string;
+  value: number;
+  icon: string;
+  bg: string;
+}
 
-/**
- * 🎯 Estilo do valor
- */
-const valueStyle: React.CSSProperties = {
-  fontSize: "24px",
-  fontWeight: "bold",
-  marginTop: "8px",
-};
+function Card({ title, value, icon, bg }: CardProps) {
+  return (
+    <div
+      className={`${bg} p-5 rounded-xl shadow-sm hover:shadow-md transition duration-200`}
+    >
+      {/* 🔹 Header */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-gray-600">{title}</span>
+        <span className="text-xl">{icon}</span>
+      </div>
+
+      {/* 🔹 Valor */}
+      <h2 className="text-2xl font-bold mt-2">{value}</h2>
+    </div>
+  );
+}

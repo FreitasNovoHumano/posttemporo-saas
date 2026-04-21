@@ -2,12 +2,12 @@
 
 /**
  * =====================================================
- * 📊 DASHBOARD PRINCIPAL
+ * 📊 DASHBOARD PRINCIPAL (PRO)
  * =====================================================
  * Responsável por:
  * - Buscar métricas do backend
- * - Exibir cards de resumo
- * - Exibir gráfico de posts
+ * - Exibir cards modernos
+ * - Exibir gráficos (status + histórico)
  *
  * 🔐 Protegido via JWT
  * =====================================================
@@ -16,18 +16,24 @@
 import { useEffect, useState } from "react";
 import StatsCards from "@/components/dashboard/StatsCards";
 import PostChart from "@/components/dashboard/PostChart";
+import StatsSkeleton from "@/components/dashboard/StatsSkeleton";
 
 /**
- * 🔹 Tipagem alinhada com backend
+ * 🔹 Tipagem alinhada com backend atualizado
  */
 interface DashboardData {
   posts: number;
   scheduled: number;
-  published: number;
+  approved: number;
+  pending: number;
+  history?: {
+    date: string;
+    total: number;
+  }[];
 }
 
 /**
- * 🔹 URL da API (env)
+ * 🔹 URL da API
  */
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -53,9 +59,6 @@ export default function Dashboard() {
           },
         });
 
-        /**
-         * 🔒 Validação da resposta HTTP
-         */
         if (!res.ok) {
           throw new Error("Erro ao buscar métricas");
         }
@@ -63,8 +66,8 @@ export default function Dashboard() {
         const json = await res.json();
 
         /**
-         * 📌 Backend padrão:
-         * { data: { posts, scheduled, published } }
+         * 📌 Esperado:
+         * { data: { posts, scheduled, approved, pending, history } }
          */
         setData(json.data);
 
@@ -80,18 +83,21 @@ export default function Dashboard() {
   }, []);
 
   /**
-   * ⏳ LOADING STATE
+   * ⏳ LOADING (Skeleton UX)
    */
   if (loading) {
     return (
-      <div className="p-6">
-        <p>Carregando dashboard...</p>
+      <div className="p-6 space-y-6">
+        <StatsSkeleton />
+
+        {/* Skeleton do gráfico */}
+        <div className="h-[300px] bg-gray-200 animate-pulse rounded-xl"></div>
       </div>
     );
   }
 
   /**
-   * ❌ ERROR STATE
+   * ❌ ERROR
    */
   if (error) {
     return (
@@ -133,7 +139,7 @@ export default function Dashboard() {
       <StatsCards metrics={data} />
 
       {/* ========================================
-          📈 GRÁFICO
+          📈 GRÁFICOS
           ======================================== */}
       <PostChart metrics={data} />
     </div>
