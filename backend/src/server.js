@@ -1,29 +1,66 @@
 /**
  * =====================================================
- * 🚀 SERVER - API POSTTEMPERO (Express)
+ * 🚀 SERVER - API POSTTEMPERO (PRO)
  * =====================================================
  * Responsável por:
  * - Configurar middlewares globais
  * - Registrar rotas
- * - Subir o servidor
+ * - Subir servidor HTTP + WebSocket
+ * - Inicializar jobs (cron)
  * =====================================================
  */
 
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
+const http = require("http");
+const { Server } = require("socket.io");
 
+/**
+ * 🔹 App Express
+ */
 const app = express();
 
 /**
+ * 🔹 Criar servidor HTTP (necessário pro socket.io)
+ */
+const server = http.createServer(app);
+
+/**
  * =====================================================
- * 🔐 CONFIGURAÇÃO DE CORS
+ * 🔌 SOCKET.IO (TEMPO REAL)
  * =====================================================
- * Permite requisições do frontend (Next.js)
+ */
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:3000",
+  },
+});
+
+/**
+ * 🔹 Conexão WebSocket
+ */
+io.on("connection", (socket) => {
+  console.log("🟢 Usuário conectado:", socket.id);
+
+  socket.on("disconnect", () => {
+    console.log("🔴 Usuário desconectado:", socket.id);
+  });
+});
+
+/**
+ * 🔥 EXPORTAR IO (para usar nos controllers/services)
+ */
+module.exports.io = io;
+
+/**
+ * =====================================================
+ * 🔐 CORS
+ * =====================================================
  */
 app.use(
   cors({
-    origin: "http://localhost:3000", // Frontend
+    origin: "http://localhost:3000",
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
@@ -31,48 +68,40 @@ app.use(
 
 /**
  * =====================================================
- * 🔹 MIDDLEWARES GLOBAIS
+ * 🔹 MIDDLEWARES
  * =====================================================
  */
-app.use(express.json()); // Parse JSON
+app.use(express.json());
 
 /**
  * =====================================================
- * 📦 IMPORTAÇÃO DE ROTAS
+ * 📦 ROTAS
  * =====================================================
  */
 const authRoutes = require("./routes/authRoutes");
 const postRoutes = require("./routes/postRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
+const notificationRoutes = require("./routes/notificationRoutes"); // 🔥 novo
 
-/**
- * =====================================================
- * 🔗 REGISTRO DE ROTAS
- * =====================================================
- */
-
-// 🔐 Autenticação
 app.use("/auth", authRoutes);
-
-// 📝 Posts
 app.use("/posts", postRoutes);
-
-// 📊 Dashboard (métricas)
 app.use("/dashboard", dashboardRoutes);
+app.use("/", notificationRoutes);
 
 /**
  * =====================================================
  * 📁 ARQUIVOS ESTÁTICOS
  * =====================================================
- * Ex: imagens enviadas (uploads)
  */
-app.use("/uploads", express.static(path.resolve(__dirname, "..", "uploads")));
+app.use(
+  "/uploads",
+  express.static(path.resolve(__dirname, "..", "uploads"))
+);
 
 /**
  * =====================================================
  * 🧪 HEALTH CHECK
  * =====================================================
- * Verifica se API está online
  */
 app.get("/", (req, res) => {
   return res.status(200).json({
@@ -82,7 +111,7 @@ app.get("/", (req, res) => {
 
 /**
  * =====================================================
- * ❌ HANDLER GLOBAL DE ERROS
+ * ❌ ERROR HANDLER GLOBAL
  * =====================================================
  */
 app.use((err, req, res, next) => {
@@ -95,11 +124,20 @@ app.use((err, req, res, next) => {
 
 /**
  * =====================================================
- * 🚀 START DO SERVIDOR
+ * ⏰ JOBS (CRON)
+ * =====================================================
+ */
+const startPublishPostsJob = require("./jobs/publishPosts.job");
+
+startPublishPostsJob(io); // 🔥 passa io para emitir eventos
+
+/**
+ * =====================================================
+ * 🚀 START SERVER
  * =====================================================
  */
 const PORT = process.env.PORT || 3001;
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`🚀 Backend rodando em http://localhost:${PORT}`);
 });

@@ -1,8 +1,9 @@
 const prisma = require("../lib/prisma");
+const { io } = require("../server"); // 🔥 IMPORTANTE
 
 /**
  * =====================================================
- * 📌 ENUM DE STATUS (PADRÃO DO SISTEMA)
+ * 📌 ENUM DE STATUS
  * =====================================================
  */
 const STATUS = {
@@ -16,13 +17,10 @@ const STATUS = {
 
 /**
  * =====================================================
- * 🧠 HELPER — STATUS AUTOMÁTICO
+ * 🧠 HELPERS
  * =====================================================
- * Regras:
- * - Sem data → DRAFT
- * - Data futura → SCHEDULED
- * - Data passada → PUBLISHED
  */
+
 function getStatusByDate(date) {
   if (!date) return STATUS.DRAFT;
 
@@ -34,28 +32,16 @@ function getStatusByDate(date) {
   return STATUS.PUBLISHED;
 }
 
-/**
- * =====================================================
- * 🔍 HELPER — BUSCAR POST COM SEGURANÇA
- * =====================================================
- */
 async function findPostOrThrow(id) {
   const post = await prisma.post.findUnique({
     where: { id: Number(id) },
   });
 
-  if (!post) {
-    throw new Error("Post não encontrado");
-  }
+  if (!post) throw new Error("Post não encontrado");
 
   return post;
 }
 
-/**
- * =====================================================
- * 🔐 HELPER — AUTORIZAÇÃO
- * =====================================================
- */
 function checkPermission(post, userId, role) {
   if (role !== "ADMIN" && post.userId !== userId) {
     throw new Error("Não autorizado");
@@ -72,7 +58,7 @@ async function createPost(data, userId) {
     throw new Error("Título é obrigatório");
   }
 
-  return prisma.post.create({
+  const post = await prisma.post.create({
     data: {
       title: data.title.trim(),
       description: data.description?.trim() || "",
@@ -81,11 +67,15 @@ async function createPost(data, userId) {
       userId,
     },
   });
+
+  io.emit("refreshPosts"); // 🔥 tempo real
+
+  return post;
 }
 
 /**
  * =====================================================
- * 🔹 LISTAR POSTS (FILTRO + ROLE)
+ * 🔹 LISTAR POSTS
  * =====================================================
  */
 async function getPosts({ userId, role, status, search }) {
@@ -108,44 +98,6 @@ async function getPosts({ userId, role, status, search }) {
 
 /**
  * =====================================================
- * 🔹 MÉTRICAS (DASHBOARD INTELIGENTE)
- * =====================================================
- */
-async function getMetrics(userId) {
-  if (!userId) throw new Error("Usuário não autenticado");
-
-  const [posts, approved, pending, scheduled, published] =
-    await Promise.all([
-      prisma.post.count({ where: { userId } }),
-      prisma.post.count({ where: { userId, status: STATUS.APPROVED } }),
-      prisma.post.count({ where: { userId, status: STATUS.PENDING } }),
-      prisma.post.count({ where: { userId, status: STATUS.SCHEDULED } }),
-      prisma.post.count({ where: { userId, status: STATUS.PUBLISHED } }),
-    ]);
-
-  /**
-   * 📊 Histórico por dia
-   */
-  const history = await prisma.$queryRaw`
-    SELECT DATE("createdAt") as date, COUNT(*) as total
-    FROM "Post"
-    WHERE "userId" = ${userId}
-    GROUP BY DATE("createdAt")
-    ORDER BY date ASC
-  `;
-
-  return {
-    posts,
-    approved,
-    pending,
-    scheduled,
-    published,
-    history,
-  };
-}
-
-/**
- * =====================================================
  * 🔹 APROVAR POST
  * =====================================================
  */
@@ -156,15 +108,7 @@ async function approvePost(postId, userId) {
     throw new Error("Não autorizado");
   }
 
-  return prisma.post.update({
-    where: { id: Number(postId) },
-    data: {
-      status: STATUS.APPROVED,
-      rejectionComment: null,
-    },
-  });
-
-   const updated = await prisma.post.update({
+  const updated = await prisma.post.update({
     where: { id: Number(postId) },
     data: {
       status: STATUS.APPROVED,
@@ -173,7 +117,7 @@ async function approvePost(postId, userId) {
   });
 
   /**
-   * 🔔 NOTIFICAÇÃO
+   * 🔔 Notificação
    */
   await prisma.notification.create({
     data: {
@@ -182,9 +126,10 @@ async function approvePost(postId, userId) {
     },
   });
 
+  io.emit("refreshPosts"); // 🔥 tempo real
+
   return updated;
 }
-
 
 /**
  * =====================================================
@@ -198,7 +143,7 @@ async function rejectPost(postId, comment, userId) {
     throw new Error("Não autorizado");
   }
 
-  return prisma.post.update({
+  const updated = await prisma.post.update({
     where: { id: Number(postId) },
     data: {
       status: STATUS.REJECTED,
@@ -207,16 +152,20 @@ async function rejectPost(postId, comment, userId) {
   });
 
   await prisma.notification.create({
-  data: {
-    userId: post.userId,
-    message: "Post rejeitado",
-  },
-});
+    data: {
+      userId: post.userId,
+      message: "Post rejeitado",
+    },
+  });
+
+  io.emit("refreshPosts"); // 🔥 tempo real
+
+  return updated;
 }
 
 /**
  * =====================================================
- * 🔹 ATUALIZAR POST
+ * 🔹 ATUALIZAR POST (KANBAN)
  * =====================================================
  */
 async function updatePost(id, data, userId, role) {
@@ -224,13 +173,18 @@ async function updatePost(id, data, userId, role) {
 
   checkPermission(post, userId, role);
 
-  return prisma.post.update({
+  const updated = await prisma.post.update({
     where: { id: Number(id) },
     data: {
       title: data.title,
       description: data.description,
+      status: data.status, // 🔥 importante pro Kanban
     },
   });
+
+  io.emit("refreshPosts"); // 🔥 tempo real
+
+  return updated;
 }
 
 /**
@@ -243,14 +197,18 @@ async function deletePost(id, userId, role) {
 
   checkPermission(post, userId, role);
 
-  return prisma.post.delete({
+  const deleted = await prisma.post.delete({
     where: { id: Number(id) },
   });
+
+  io.emit("refreshPosts");
+
+  return deleted;
 }
 
 /**
  * =====================================================
- * 🔹 AGENDAR POST (COM STATUS AUTOMÁTICO)
+ * 🔹 AGENDAR POST
  * =====================================================
  */
 async function schedulePost(id, date, userId) {
@@ -262,13 +220,17 @@ async function schedulePost(id, date, userId) {
 
   const status = getStatusByDate(date);
 
-  return prisma.post.update({
+  const updated = await prisma.post.update({
     where: { id: Number(id) },
     data: {
       scheduledDate: new Date(date),
-      status, // 🔥 agora automático
+      status,
     },
   });
+
+  io.emit("refreshPosts");
+
+  return updated;
 }
 
 /**

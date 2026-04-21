@@ -2,21 +2,18 @@
 
 /**
  * =====================================================
- * 📅 CALENDAR VIEW (React Big Calendar + Drag & Drop)
+ * 📅 CALENDAR VIEW (PRO - ESTILO INSTAGRAM)
  * =====================================================
  * Responsável por:
  * - Renderizar calendário de posts
- * - Exibir eventos (posts agendados)
- * - Permitir mover eventos (drag & drop)
- * - Permitir redimensionar eventos
- * - Aplicar estilo baseado no status
+ * - Exibir eventos com preview de imagem
+ * - Drag & drop (reagendamento)
+ * - Estilo baseado no status
+ * - UX moderna
  *
  * Props:
- * - events: [
- *     { id, title, start: Date, end: Date, status }
- *   ]
- * - onMoveEvent: ({ id, newStart, newEnd }) => void
- *
+ * - events: [{ id, title, start, end, status, image }]
+ * - onMoveEvent: function
  * =====================================================
  */
 
@@ -28,7 +25,6 @@ import ptBR from "date-fns/locale/pt-BR";
 
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
-
 
 /**
  * 🌎 Localização pt-BR
@@ -42,32 +38,73 @@ const localizer = dateFnsLocalizer({
 });
 
 /**
- * 🔄 Habilita Drag & Drop
+ * 🔄 Drag & Drop habilitado
  */
 const DnDCalendar = withDragAndDrop(Calendar);
 
 /**
- * 🎨 Estilo dos eventos baseado no status
+ * 🎨 Cores por status
+ */
+const STATUS_COLORS = {
+  DRAFT: "#9ca3af",
+  SCHEDULED: "#f59e0b",
+  PUBLISHED: "#10b981",
+  REJECTED: "#ef4444",
+};
+
+/**
+ * 🎨 Estilo dos eventos
  */
 function eventStyleGetter(event) {
-  const statusColors = {
-    DRAFT: "#9ca3af",
-    SCHEDULED: "#f59e0b",
-    PUBLISHED: "#10b981",
-    REJECTED: "#ef4444", // 🔥 novo status
-  };
-
   return {
     style: {
-      backgroundColor: statusColors[event.status] || "#3b82f6",
-      borderRadius: "6px",
-      color: "#fff",
+      backgroundColor: "transparent", // 🔥 agora usamos card custom
       border: "none",
-      padding: "4px 6px",
-      fontSize: "12px",
-      cursor: "pointer",
+      padding: 0,
     },
   };
+}
+
+/**
+ * 🖼️ EVENTO CUSTOMIZADO (ESTILO INSTAGRAM)
+ */
+function EventComponent({ event }) {
+  return (
+    <div
+      className="
+        flex items-center gap-2
+        bg-white rounded-lg shadow px-2 py-1
+        border-l-4
+      "
+      style={{
+        borderColor: STATUS_COLORS[event.status] || "#3b82f6",
+      }}
+    >
+      {/* 🖼️ IMAGEM */}
+      {event.image && (
+        <img
+          src={`${process.env.NEXT_PUBLIC_API_URL}/uploads/${event.image}`}
+          className="w-6 h-6 rounded object-cover"
+        />
+      )}
+
+      {/* 📝 TEXTO */}
+      <div className="flex flex-col">
+        <span className="text-xs font-semibold truncate">
+          {event.title}
+        </span>
+
+        <span
+          className="text-[10px]"
+          style={{
+            color: STATUS_COLORS[event.status],
+          }}
+        >
+          {event.status}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -91,7 +128,7 @@ export default function CalendarView({
   }
 
   /**
-   * 🔄 Evento movido (drag & drop)
+   * 🔄 Drag & Drop
    */
   const handleEventDrop = ({ event, start, end }) => {
     if (!onMoveEvent) return;
@@ -103,9 +140,6 @@ export default function CalendarView({
     });
   };
 
-  /**
-   * 🔄 Evento redimensionado
-   */
   const handleEventResize = ({ event, start, end }) => {
     if (!onMoveEvent) return;
 
@@ -117,11 +151,11 @@ export default function CalendarView({
   };
 
   /**
-   * 🎯 Clique no evento (preparado pra futuro modal)
+   * 🎯 Clique no evento
    */
   const handleSelectEvent = (event) => {
     console.log("📌 Evento clicado:", event);
-    // 🔥 futuro: abrir modal de edição
+    // 👉 futuro: abrir modal
   };
 
   return (
@@ -133,7 +167,7 @@ export default function CalendarView({
         endAccessor="end"
 
         /**
-         * 📊 Visualizações
+         * 📊 Views
          */
         defaultView="month"
         views={["month", "week", "day"]}
@@ -156,9 +190,12 @@ export default function CalendarView({
         onSelectEvent={handleSelectEvent}
 
         /**
-         * 🎨 Estilo dos eventos
+         * 🎨 Customização visual
          */
         eventPropGetter={eventStyleGetter}
+        components={{
+          event: EventComponent, // 🔥 AQUI ESTÁ O PULO DO GATO
+        }}
       />
     </div>
   );
