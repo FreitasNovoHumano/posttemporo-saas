@@ -1,39 +1,45 @@
 /**
- * 🔐 Middleware de autorização por role
- * Permite acesso apenas a perfis específicos
+ * =====================================================
+ * 🛡️ ROLE MIDDLEWARE (RBAC POR EMPRESA)
+ * =====================================================
+ * Responsável por:
+ * - Validar permissões baseadas na role da empresa
+ *
+ * ⚠️ Depende do companyMiddleware
+ * =====================================================
  */
+
 function roleMiddleware(...allowedRoles) {
   return (req, res, next) => {
+    /**
+     * 🔴 Verifica autenticação
+     */
     if (!req.user) {
       return res.status(401).json({
         error: "Usuário não autenticado",
       });
     }
 
-    if (!allowedRoles.includes(req.user.role)) {
+    /**
+     * 🔴 Verifica contexto da empresa
+     */
+    if (!req.role) {
+      return res.status(400).json({
+        error: "Contexto de empresa não definido",
+      });
+    }
+
+    /**
+     * 🔒 Verifica permissão
+     */
+    if (!allowedRoles.includes(req.role)) {
       return res.status(403).json({
         error: "Acesso negado",
       });
     }
 
-    next();
+    return next();
   };
 }
-
-module.exports = function allowRoles(...allowedRoles) {
-  return (req, res, next) => {
-    const user = req.user;
-
-    if (!user) {
-      return res.status(401).json({ message: "Não autenticado" });
-    }
-
-    if (!allowedRoles.includes(user.role)) {
-      return res.status(403).json({ message: "Acesso negado" });
-    }
-
-    next();
-  };
-};
 
 module.exports = roleMiddleware;

@@ -2,23 +2,63 @@ const express = require("express");
 const router = express.Router();
 
 const commentService = require("../services/commentService");
+
 const auth = require("../middlewares/authMiddleware");
+const company = require("../middlewares/companyMiddleware");
+const role = require("../middlewares/roleMiddleware");
 
-router.post("/comments", auth, async (req, res) => {
-  const { postId, content } = req.body;
+/**
+ * =====================================================
+ * 💬 COMMENT ROUTES (MULTI-TENANT)
+ * =====================================================
+ */
 
-  const comment = await commentService.createComment(
-    postId,
-    content,
-    req.userId
-  );
+/**
+ * 🔹 Criar comentário
+ */
+router.post(
+  "/comments",
+  auth,
+  company,
+  role("ADMIN", "EDITOR", "VIEWER"),
+  async (req, res) => {
+    try {
+      const { postId, content } = req.body;
 
-  res.json(comment);
-});
+      const comment = await commentService.createComment({
+        postId,
+        content,
+        userId: req.user.userId,
+        companyId: req.companyId,
+      });
 
-router.get("/comments/:postId", auth, async (req, res) => {
-  const comments = await commentService.getComments(req.params.postId);
-  res.json(comments);
-});
+      res.status(201).json(comment);
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  }
+);
+
+/**
+ * 🔹 Listar comentários de um post
+ */
+router.get(
+  "/comments/:postId",
+  auth,
+  company,
+  role("ADMIN", "EDITOR", "VIEWER"),
+  async (req, res) => {
+    try {
+      const comments = await commentService.getComments({
+        postId: req.params.postId,
+        companyId: req.companyId,
+      });
+
+      res.json(comments);
+    } catch (error) {
+      res.status(400).json({ error: error.message });
+    }
+  }
+);
 
 module.exports = router;

@@ -1,27 +1,65 @@
+const prisma = require("../lib/prisma");
+
 /**
  * =====================================================
- * 🛡️ COMPANY MIDDLEWARE
+ * 🏢 COMPANY MIDDLEWARE (MULTI-TENANT REAL)
  * =====================================================
  * Responsável por:
- * - Garantir que usuário tem empresa
- * - Injetar companyId na request
+ * - Identificar a empresa via header
+ * - Validar acesso do usuário à empresa
+ * - Injetar contexto multi-tenant na request
+ *
+ * 🔥 CORE do SaaS
  * =====================================================
  */
 
-module.exports = function companyMiddleware(req, res, next) {
+async function companyMiddleware(req, res, next) {
   try {
-    if (!req.user || !req.user.companyId) {
-      return res.status(403).json({
-        error: "Usuário sem empresa vinculada",
+    /**
+     * 🔴 Usuário não autenticado
+     */
+    if (!req.user || !req.user.userId) {
+      return res.status(401).json({
+        error: "Usuário não autenticado",
       });
     }
 
     /**
-     * 🔥 Injeta companyId (facilita nos services)
+     * 🔹 Empresa vem do frontend
      */
-    req.companyId = req.user.companyId;
+    const companyId = req.headers["x-company-id"];
 
-    next();
+    if (!companyId) {
+      return res.status(400).json({
+        error: "Empresa não informada (x-company-id)",
+      });
+    }
+
+    /**
+     * 🔥 Verifica vínculo do usuário com a empresa
+     */
+    const membership = await prisma.membership.findUnique({
+      where: {
+        userId_companyId: {
+          userId: req.user.userId,
+          companyId,
+        },
+      },
+    });
+
+    if (!membership) {
+      return res.status(403).json({
+        error: "Acesso negado a esta empresa",
+      });
+    }
+
+    /**
+     * 🔥 CONTEXTO MULTI-TENANT
+     */
+    req.companyId = companyId;
+    req.role = membership.role;
+
+    return next();
 
   } catch (error) {
     console.error("❌ Erro no companyMiddleware:", error);
@@ -30,4 +68,6 @@ module.exports = function companyMiddleware(req, res, next) {
       error: "Erro interno no middleware",
     });
   }
-};
+}
+
+module.exports = companyMiddleware;

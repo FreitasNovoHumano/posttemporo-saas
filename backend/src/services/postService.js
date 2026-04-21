@@ -4,16 +4,15 @@ const audit = require("./auditService");
 
 /**
  * =====================================================
- * 📌 ENUM DE STATUS
+ * 📌 STATUS
  * =====================================================
  */
 const STATUS = {
   DRAFT: "DRAFT",
-  PENDING: "PENDING",
-  APPROVED: "APPROVED",
-  REJECTED: "REJECTED",
   SCHEDULED: "SCHEDULED",
   PUBLISHED: "PUBLISHED",
+  APPROVED: "APPROVED",
+  REJECTED: "REJECTED",
 };
 
 /**
@@ -31,9 +30,15 @@ function getStatusByDate(date) {
   return target > now ? STATUS.SCHEDULED : STATUS.PUBLISHED;
 }
 
-async function findPostOrThrow(id) {
-  const post = await prisma.post.findUnique({
-    where: { id: Number(id) },
+/**
+ * 🔒 Busca post garantindo isolamento por empresa
+ */
+async function findPostOrThrow(id, companyId) {
+  const post = await prisma.post.findFirst({
+    where: {
+      id: Number(id),
+      companyId,
+    },
   });
 
   if (!post) throw new Error("Post não encontrado");
@@ -41,17 +46,20 @@ async function findPostOrThrow(id) {
   return post;
 }
 
+/**
+ * 🔐 Permissão baseada em role + autor
+ */
 function checkPermission(post, userId, role) {
-  if (role !== "ADMIN" && post.userId !== userId) {
+  if (role !== "ADMIN" && post.authorId !== userId) {
     throw new Error("Não autorizado");
   }
 }
 
 /**
- * 🔄 Disparos globais (centralizado)
+ * 🔄 Evento global
  */
-function emitUpdate() {
-  io.emit("refreshPosts");
+function emitUpdate(companyId) {
+  io.emit(`refreshPosts:${companyId}`);
 }
 
 /**
@@ -59,7 +67,7 @@ function emitUpdate() {
  * 🔹 CRIAR POST
  * =====================================================
  */
-async function createPost(data, userId) {
+async function createPost(data, userId, companyId) {
   if (!data?.title?.trim()) {
     throw new Error("Título é obrigatório");
   }
@@ -67,30 +75,35 @@ async function createPost(data, userId) {
   const post = await prisma.post.create({
     data: {
       title: data.title.trim(),
-      description: data.description?.trim() || "",
-      image: data.image || null,
+      content: data.content?.trim() || "",
+      imageUrl: data.imageUrl || null,
       status: STATUS.DRAFT,
-      userId,
+      authorId: userId,
+      companyId,
     },
   });
 
-  await audit.logAction("CREATE", post.id, userId);
+  await audit.logAction({
+    action: "CREATE_POST",
+    postId: post.id,
+    userId,
+    companyId,
+  });
 
-  emitUpdate();
+  emitUpdate(companyId);
   return post;
 }
 
 /**
  * =====================================================
- * 🔹 LISTAR POSTS
+ * 🔹 LISTAR POSTS (MULTI-TENANT)
  * =====================================================
  */
-async function getPosts({ userId, role, status, search }) {
-  if (!userId) throw new Error("Usuário não autenticado");
-
+async function getPosts({ companyId, userId, role, status, search }) {
   return prisma.post.findMany({
     where: {
-      ...(role !== "ADMIN" && { userId }),
+      companyId,
+      ...(role !== "ADMIN" && { authorId: userId }),
       ...(status && { status }),
       ...(search && {
         title: {
@@ -105,11 +118,11 @@ async function getPosts({ userId, role, status, search }) {
 
 /**
  * =====================================================
- * 🔹 ATUALIZAR POST (KANBAN + EDIT)
+ * 🔹 ATUALIZAR POST
  * =====================================================
  */
-async function updatePost(id, data, userId, role) {
-  const post = await findPostOrThrow(id);
+async function updatePost(id, data, userId, companyId, role) {
+  const post = await findPostOrThrow(id, companyId);
 
   checkPermission(post, userId, role);
 
@@ -117,47 +130,51 @@ async function updatePost(id, data, userId, role) {
     where: { id: Number(id) },
     data: {
       title: data.title,
-      description: data.description,
+      content: data.content,
       status: data.status || post.status,
     },
   });
 
-  await audit.logAction("UPDATE", id, userId);
+  await audit.logAction({
+    action: "UPDATE_POST",
+    postId: id,
+    userId,
+    companyId,
+  });
 
-  emitUpdate();
+  emitUpdate(companyId);
   return updated;
 }
 
 /**
  * =====================================================
- * 🔹 APROVAR POST
+ * 🔹 APROVAR POST (ADMIN/EDITOR)
  * =====================================================
  */
-async function approvePost(postId, userId) {
-  const post = await findPostOrThrow(postId);
-
-  if (post.userId !== userId) {
-    throw new Error("Não autorizado");
+async function approvePost(id, userId, companyId, role) {
+  if (!["ADMIN", "EDITOR"].includes(role)) {
+    throw new Error("Sem permissão para aprovar");
   }
 
+  const post = await findPostOrThrow(id, companyId);
+
   const updated = await prisma.post.update({
-    where: { id: Number(postId) },
+    where: { id: Number(id) },
     data: {
       status: STATUS.APPROVED,
-      rejectionComment: null,
+      approvedBy: userId,
+      approvedAt: new Date(),
     },
   });
 
-  await prisma.notification.create({
-    data: {
-      userId: post.userId,
-      message: "Post aprovado!",
-    },
+  await audit.logAction({
+    action: "APPROVE_POST",
+    postId: id,
+    userId,
+    companyId,
   });
 
-  await audit.logAction("APPROVED", postId, userId);
-
-  emitUpdate();
+  emitUpdate(companyId);
   return updated;
 }
 
@@ -166,31 +183,28 @@ async function approvePost(postId, userId) {
  * 🔹 REJEITAR POST
  * =====================================================
  */
-async function rejectPost(postId, comment, userId) {
-  const post = await findPostOrThrow(postId);
-
-  if (post.userId !== userId) {
-    throw new Error("Não autorizado");
+async function rejectPost(id, comment, userId, companyId, role) {
+  if (!["ADMIN", "EDITOR"].includes(role)) {
+    throw new Error("Sem permissão para rejeitar");
   }
 
+  const post = await findPostOrThrow(id, companyId);
+
   const updated = await prisma.post.update({
-    where: { id: Number(postId) },
+    where: { id: Number(id) },
     data: {
       status: STATUS.REJECTED,
-      rejectionComment: comment?.trim() || "Sem comentário",
     },
   });
 
-  await prisma.notification.create({
-    data: {
-      userId: post.userId,
-      message: "Post rejeitado",
-    },
+  await audit.logAction({
+    action: "REJECT_POST",
+    postId: id,
+    userId,
+    companyId,
   });
 
-  await audit.logAction("REJECTED", postId, userId);
-
-  emitUpdate();
+  emitUpdate(companyId);
   return updated;
 }
 
@@ -199,8 +213,8 @@ async function rejectPost(postId, comment, userId) {
  * 🔹 DELETAR POST
  * =====================================================
  */
-async function deletePost(id, userId, role) {
-  const post = await findPostOrThrow(id);
+async function deletePost(id, userId, companyId, role) {
+  const post = await findPostOrThrow(id, companyId);
 
   checkPermission(post, userId, role);
 
@@ -208,9 +222,14 @@ async function deletePost(id, userId, role) {
     where: { id: Number(id) },
   });
 
-  await audit.logAction("DELETE", id, userId);
+  await audit.logAction({
+    action: "DELETE_POST",
+    postId: id,
+    userId,
+    companyId,
+  });
 
-  emitUpdate();
+  emitUpdate(companyId);
 }
 
 /**
@@ -218,10 +237,10 @@ async function deletePost(id, userId, role) {
  * 🔹 AGENDAR POST
  * =====================================================
  */
-async function schedulePost(id, date, userId) {
-  const post = await findPostOrThrow(id);
+async function schedulePost(id, date, userId, companyId) {
+  const post = await findPostOrThrow(id, companyId);
 
-  if (post.userId !== userId) {
+  if (post.authorId !== userId) {
     throw new Error("Não autorizado");
   }
 
@@ -235,17 +254,17 @@ async function schedulePost(id, date, userId) {
     },
   });
 
-  await audit.logAction("SCHEDULED", id, userId);
+  await audit.logAction({
+    action: "SCHEDULE_POST",
+    postId: id,
+    userId,
+    companyId,
+  });
 
-  emitUpdate();
+  emitUpdate(companyId);
   return updated;
 }
 
-/**
- * =====================================================
- * 📦 EXPORTAÇÃO
- * =====================================================
- */
 module.exports = {
   createPost,
   getPosts,

@@ -3,14 +3,17 @@ const prisma = require("../lib/prisma");
 
 /**
  * =====================================================
- * 🔐 AUTH MIDDLEWARE (PRO)
+ * 🔐 AUTH MIDDLEWARE (SaaS READY)
  * =====================================================
  * Responsável por:
  * - Validar JWT
- * - Buscar usuário no banco
- * - Injetar dados seguros em req.user
+ * - Garantir que o usuário existe
+ * - Injetar identidade do usuário em req.user
  *
- * 🔥 ESSENCIAL para multi-tenant
+ * ❌ NÃO lida com empresa
+ * ❌ NÃO lida com roles
+ *
+ * 👉 Multi-tenant é tratado no companyMiddleware
  * =====================================================
  */
 
@@ -28,9 +31,15 @@ async function authMiddleware(req, res, next) {
     }
 
     /**
-     * 🔹 Formato: Bearer TOKEN
+     * 🔹 Formato esperado: Bearer TOKEN
      */
-    const token = authHeader.split(" ")[1];
+    const [, token] = authHeader.split(" ");
+
+    if (!token) {
+      return res.status(401).json({
+        error: "Formato de token inválido",
+      });
+    }
 
     /**
      * 🔐 Decodifica token
@@ -38,11 +47,15 @@ async function authMiddleware(req, res, next) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     /**
-     * 🔥 BUSCA USUÁRIO NO BANCO
-     * (NUNCA confie só no token)
+     * 🔥 Busca usuário no banco (fonte da verdade)
      */
     const user = await prisma.user.findUnique({
-      where: { id: decoded.userId || decoded.id },
+      where: { id: decoded.userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+      },
     });
 
     if (!user) {
@@ -52,21 +65,21 @@ async function authMiddleware(req, res, next) {
     }
 
     /**
-     * 🔥 AQUI NASCE O CONTEXTO DO USUÁRIO
+     * 🔥 CONTEXTO SEGURO DO USUÁRIO
      */
     req.user = {
-      id: user.id,
-      role: user.role,
-      companyId: user.companyId, // 🔥 CRÍTICO
+      userId: user.id,
+      email: user.email,
+      name: user.name,
     };
 
-    next();
+    return next();
 
   } catch (error) {
     console.error("❌ Erro no authMiddleware:", error);
 
     return res.status(401).json({
-      error: "Token inválido",
+      error: "Token inválido ou expirado",
     });
   }
 }

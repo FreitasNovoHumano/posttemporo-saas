@@ -1,42 +1,100 @@
 const authService = require("../services/authService");
 const prisma = require("../lib/prisma");
-const generateToken = require("../utils/generateToken");
 
 /**
- * 🔹 REGISTER (com criação de empresa)
+ * =====================================================
+ * 🔐 AUTH CONTROLLER
+ * =====================================================
+ * Responsável por:
+ * - Registro de usuário + empresa (multi-tenant)
+ * - Login
+ * - Retornar usuário autenticado
+ * =====================================================
+ */
+
+/**
+ * 🔹 REGISTER (cria empresa + vínculo via Membership)
  */
 async function register(req, res) {
   try {
     const { name, email, password, companyName } = req.body;
 
-    // 🔴 Validação básica
+    // 🔴 Validação
     if (!email || !password || !companyName) {
       return res.status(400).json({
         error: "Email, senha e nome da empresa são obrigatórios",
       });
     }
 
-    // 🔥 Cria empresa (tenant)
-    const company = await prisma.company.create({
-      data: {
-        name: companyName,
-      },
+    /**
+     * 🔒 Verifica se usuário já existe
+     */
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
     });
 
-    // 🔥 Cria usuário vinculado à empresa
-    const user = await authService.register({
-      name,
+    if (existingUser) {
+      return res.status(400).json({
+        error: "Usuário já existe",
+      });
+    }
+
+    /**
+     * 🔥 Transação (garante consistência)
+     */
+    const result = await prisma.$transaction(async (tx) => {
+      /**
+       * 🏢 Cria empresa (tenant)
+       */
+      const company = await tx.company.create({
+        data: {
+          name: companyName,
+        },
+      });
+
+      /**
+       * 👤 Cria usuário
+       */
+      const user = await authService.register({
+        name,
+        email,
+        password,
+      });
+
+      /**
+       * 🔗 Cria vínculo (Membership)
+       * Usuário vira ADMIN da empresa
+       */
+      await tx.membership.create({
+        data: {
+          userId: user.id,
+          companyId: company.id,
+          role: "ADMIN",
+        },
+      });
+
+      return { user, company };
+    });
+
+    /**
+     * 🔐 Login automático após registro
+     */
+    const { accessToken, refreshToken } = await authService.login({
       email,
       password,
-      companyId: company.id,
     });
 
-    // 🔥 Gera token com companyId
-    const token = generateToken(user);
-
-    return res.json({
-      user,
-      token,
+    return res.status(201).json({
+      user: result.user,
+      companies: [
+        {
+          id: result.company.id,
+          name: result.company.name,
+          role: "ADMIN",
+        },
+      ],
+      accessToken,
+      refreshToken,
     });
 
   } catch (error) {
@@ -53,14 +111,34 @@ async function register(req, res) {
  */
 async function login(req, res) {
   try {
-    const user = await authService.login(req.body);
+    const { user, accessToken, refreshToken } =
+      await authService.login(req.body);
 
-    // 🔥 Gera token com companyId
-    const token = generateToken(user);
+    /**
+     * 🔥 Retorna empresas do usuário
+     */
+    const memberships = await prisma.membership.findMany({
+      where: {
+        userId: user.id,
+      },
+      include: {
+        company: true,
+      },
+    });
 
     return res.json({
-      user,
-      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+      },
+      companies: memberships.map((m) => ({
+        id: m.company.id,
+        name: m.company.name,
+        role: m.role,
+      })),
+      accessToken,
+      refreshToken,
     });
 
   } catch (error) {
@@ -71,18 +149,18 @@ async function login(req, res) {
 }
 
 /**
- * 🔹 GET USER LOGADO
+ * 🔹 GET USER LOGADO (/me)
  */
 async function me(req, res) {
   try {
     const user = await prisma.user.findUnique({
-      where: { id: req.user.id },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        companyId: true, // 🔥 importante agora
+      where: { id: req.user.userId },
+      include: {
+        memberships: {
+          include: {
+            company: true,
+          },
+        },
       },
     });
 
@@ -92,7 +170,16 @@ async function me(req, res) {
       });
     }
 
-    return res.json(user);
+    return res.json({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      companies: user.memberships.map((m) => ({
+        id: m.company.id,
+        name: m.company.name,
+        role: m.role,
+      })),
+    });
 
   } catch (error) {
     console.error("ERRO /me:", error);
