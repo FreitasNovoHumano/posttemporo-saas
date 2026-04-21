@@ -1,24 +1,21 @@
 const prisma = require("../lib/prisma");
 
 /**
- * 📌 ENUM de status (alinhado com Prisma)
+ * 📌 ENUM de status
  */
 const STATUS = {
   PENDING: "PENDING",
   APPROVED: "APPROVED",
   REJECTED: "REJECTED",
+  SCHEDULED: "SCHEDULED",
 };
 
 /**
  * 🔹 Criar post
  */
 async function createPost(data, userId) {
-  if (!data || !data.title?.trim()) {
+  if (!data?.title?.trim()) {
     throw new Error("Título é obrigatório");
-  }
-
-  if (!userId) {
-    throw new Error("Usuário não autenticado");
   }
 
   return prisma.post.create({
@@ -26,47 +23,63 @@ async function createPost(data, userId) {
       title: data.title.trim(),
       description: data.description?.trim() || "",
       image: data.image || null,
-      status: STATUS.PENDING, // 🔥 padrão consistente
+      status: STATUS.PENDING,
       userId,
     },
   });
 }
 
 /**
- * 🔹 Listar posts do usuário
+ * 🔹 Listar posts (com filtro + role)
  */
-async function getPosts(userId) {
-  if (!userId) {
-    throw new Error("Usuário não autenticado");
-  }
+async function getPosts({ userId, role, status, search }) {
+  if (!userId) throw new Error("Usuário não autenticado");
 
   return prisma.post.findMany({
-    where: { userId },
+    where: {
+      ...(role !== "ADMIN" && { userId }), // 🔥 admin vê tudo
+      ...(status && { status }),
+      ...(search && {
+        title: {
+          contains: search,
+          mode: "insensitive",
+        },
+      }),
+    },
     orderBy: { createdAt: "desc" },
   });
 }
 
 /**
- * 🔹 Métricas do dashboard
+ * 🔹 Métricas inteligentes (dashboard)
  */
 async function getMetrics(userId) {
-  if (!userId) {
-    throw new Error("Usuário não autenticado");
-  }
+  if (!userId) throw new Error("Usuário não autenticado");
 
-  // 🔥 Executa em paralelo (mais performático)
-  const [total, approved, pending] = await Promise.all([
+  const [posts, approved, pending, scheduled] = await Promise.all([
     prisma.post.count({ where: { userId } }),
     prisma.post.count({ where: { userId, status: STATUS.APPROVED } }),
     prisma.post.count({ where: { userId, status: STATUS.PENDING } }),
+    prisma.post.count({ where: { userId, status: STATUS.SCHEDULED } }),
   ]);
 
+  /**
+   * 📊 Histórico por dia (dashboard avançado)
+   */
+  const history = await prisma.$queryRaw`
+    SELECT DATE("createdAt") as date, COUNT(*) as total
+    FROM "Post"
+    WHERE "userId" = ${userId}
+    GROUP BY DATE("createdAt")
+    ORDER BY date ASC
+  `;
+
   return {
-    total,
+    posts,
     approved,
     pending,
-    approvalRate:
-      total > 0 ? Number(((approved / total) * 100).toFixed(2)) : 0,
+    scheduled,
+    history,
   };
 }
 
@@ -76,29 +89,16 @@ async function getMetrics(userId) {
 async function approvePost(postId, userId) {
   const id = Number(postId);
 
-  if (!id) throw new Error("ID inválido");
-  if (!userId) throw new Error("Usuário não autenticado");
-
-  const post = await prisma.post.findUnique({
-    where: { id },
-  });
+  const post = await prisma.post.findUnique({ where: { id } });
 
   if (!post) throw new Error("Post não encontrado");
-
-  // 🔐 Segurança (multi-tenant)
-  if (post.userId !== userId) {
-    throw new Error("Não autorizado");
-  }
-
-  if (post.status === STATUS.APPROVED) {
-    throw new Error("Post já aprovado");
-  }
+  if (post.userId !== userId) throw new Error("Não autorizado");
 
   return prisma.post.update({
     where: { id },
     data: {
       status: STATUS.APPROVED,
-      rejectionComment: null, // limpa rejeição anterior
+      rejectionComment: null,
     },
   });
 }
@@ -109,23 +109,10 @@ async function approvePost(postId, userId) {
 async function rejectPost(postId, comment, userId) {
   const id = Number(postId);
 
-  if (!id) throw new Error("ID inválido");
-  if (!userId) throw new Error("Usuário não autenticado");
-
-  const post = await prisma.post.findUnique({
-    where: { id },
-  });
+  const post = await prisma.post.findUnique({ where: { id } });
 
   if (!post) throw new Error("Post não encontrado");
-
-  // 🔐 Segurança
-  if (post.userId !== userId) {
-    throw new Error("Não autorizado");
-  }
-
-  if (post.status === STATUS.REJECTED) {
-    throw new Error("Post já rejeitado");
-  }
+  if (post.userId !== userId) throw new Error("Não autorizado");
 
   return prisma.post.update({
     where: { id },
@@ -136,14 +123,17 @@ async function rejectPost(postId, comment, userId) {
   });
 }
 
-async function updatePost(id, data, userId) {
+/**
+ * 🔹 Atualizar post
+ */
+async function updatePost(id, data, userId, role) {
   const post = await prisma.post.findUnique({
     where: { id: Number(id) },
   });
 
   if (!post) throw new Error("Post não encontrado");
 
-  if (post.userId !== userId) {
+  if (role !== "ADMIN" && post.userId !== userId) {
     throw new Error("Não autorizado");
   }
 
@@ -156,14 +146,17 @@ async function updatePost(id, data, userId) {
   });
 }
 
-async function deletePost(id, userId) {
+/**
+ * 🔹 Deletar post
+ */
+async function deletePost(id, userId, role) {
   const post = await prisma.post.findUnique({
     where: { id: Number(id) },
   });
 
   if (!post) throw new Error("Post não encontrado");
 
-  if (post.userId !== userId) {
+  if (role !== "ADMIN" && post.userId !== userId) {
     throw new Error("Não autorizado");
   }
 
@@ -172,30 +165,36 @@ async function deletePost(id, userId) {
   });
 }
 
+/**
+ * 🔹 Agendar post (CALENDÁRIO)
+ */
 async function schedulePost(id, date, userId) {
   const post = await prisma.post.findUnique({
     where: { id: Number(id) },
   });
 
   if (!post) throw new Error("Post não encontrado");
-
-  if (post.userId !== userId) {
-    throw new Error("Não autorizado");
-  }
+  if (post.userId !== userId) throw new Error("Não autorizado");
 
   return prisma.post.update({
     where: { id: Number(id) },
     data: {
-      scheduledAt: new Date(date),
+      scheduledDate: new Date(date),
+      status: STATUS.SCHEDULED, // 🔥 importante pro calendário
     },
   });
 }
 
+/**
+ * 📦 EXPORTAÇÃO
+ */
 module.exports = {
   createPost,
   getPosts,
   getMetrics,
   approvePost,
   rejectPost,
-  deletePost
+  updatePost,
+  deletePost,
+  schedulePost,
 };

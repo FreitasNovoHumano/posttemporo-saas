@@ -16,7 +16,9 @@ enum Role {
  * 🔥 ENUM — STATUS DO POST
  */
 enum PostStatus {
-  PENDING
+  DRAFT
+  SCHEDULED
+  PUBLISHED
   APPROVED
   REJECTED
 }
@@ -59,7 +61,7 @@ model User {
   company   Company @relation(fields: [companyId], references: [id])
 
   posts       Post[]
-  permissions UserPermission[] // ✅ CORREÇÃO
+  permissions UserPermission[]
 
   createdAt DateTime @default(now())
 }
@@ -79,22 +81,19 @@ model UserPermission {
  * 📝 POST
  */
 model Post {
-  id      String @id @default(uuid())
-  title   String
-  content String
-
-  status PostStatus @default(PENDING)
-
-  image String?
-  rejectionComment String?
-
-  scheduledAt DateTime?
+  id        Int        @id @default(autoincrement())
+  title     String
+  content   String
+  imageUrl  String?
+  status    PostStatus @default(DRAFT)
+  createdAt DateTime   @default(now())
+}
 
   /**
    * 👤 AUTOR
    */
   authorId String
-  author   User @relation(fields: [authorId], references: [id])
+  author   User   @relation(fields: [authorId], references: [id])
 
   /**
    * 🏢 EMPRESA (MULTI-TENANT)

@@ -3,57 +3,117 @@ const router = express.Router();
 
 const postController = require("../controllers/postController");
 const authMiddleware = require("../middlewares/authMiddleware");
+const allowRoles = require("../middlewares/roleMiddleware");
 const upload = require("../config/upload");
 
-// 🔐 Rotas protegidas
+/**
+ * =====================================================
+ * 📝 POST ROUTES
+ * =====================================================
+ * Responsável por:
+ * - CRUD de posts
+ * - Agendamento
+ * - Aprovação / Rejeição
+ * - Métricas
+ *
+ * 🔐 Todas rotas protegidas por autenticação
+ */
 
-// 🔹 Listar posts
-router.get("/posts", authMiddleware, postController.getPosts);
-router.put("/posts/:id", authMiddleware, postController.updatePost);
-router.delete("/posts/:id", authMiddleware, postController.deletePost);
-router.put("/posts/:id/schedule", authMiddleware, postController.schedulePost);
+/**
+ * 📄 LISTAR POSTS
+ * -----------------------------------------------------
+ * GET /posts
+ */
+router.get(
+  "/posts",
+  authMiddleware,
+  allowRoles("ADMIN", "USER"),
+  postController.getPosts
+);
 
-async function schedulePost(req, res) {
-  try {
-    const { id } = req.params;
-    const { date } = req.body;
-
-    const post = await postService.schedulePost(
-      id,
-      date,
-      req.userId
-    );
-
-    res.json(post);
-
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-}
-
-// 🔹 Criar post (com upload)
+/**
+ * ➕ CRIAR POST (com upload)
+ * -----------------------------------------------------
+ * POST /posts
+ */
 router.post(
   "/posts",
   authMiddleware,
+  allowRoles("ADMIN", "USER"),
   upload.single("image"),
   postController.createPost
 );
 
-// 🔹 Métricas
-router.get("/metrics", authMiddleware, postController.getMetrics);
+/**
+ * ✏️ ATUALIZAR POST
+ * -----------------------------------------------------
+ * PUT /posts/:id
+ */
+router.put(
+  "/posts/:id",
+  authMiddleware,
+  allowRoles("ADMIN", "USER"),
+  postController.updatePost
+);
 
-// 🔹 Aprovar post
+/**
+ * 🗑️ DELETAR POST
+ * -----------------------------------------------------
+ * ❗ Apenas ADMIN
+ */
+router.delete(
+  "/posts/:id",
+  authMiddleware,
+  allowRoles("ADMIN"),
+  postController.deletePost
+);
+
+/**
+ * 📅 AGENDAR POST
+ * -----------------------------------------------------
+ * PUT /posts/:id/schedule
+ */
+router.put(
+  "/posts/:id/schedule",
+  authMiddleware,
+  allowRoles("ADMIN", "USER"),
+  postController.schedulePost
+);
+
+/**
+ * ✅ APROVAR POST
+ * -----------------------------------------------------
+ * ❗ Apenas ADMIN
+ */
 router.put(
   "/posts/:id/approve",
   authMiddleware,
+  allowRoles("ADMIN"),
   postController.approvePost
 );
 
-// 🔹 Rejeitar post
+/**
+ * ❌ REJEITAR POST
+ * -----------------------------------------------------
+ * ❗ Apenas ADMIN
+ */
 router.put(
   "/posts/:id/reject",
   authMiddleware,
+  allowRoles("ADMIN"),
   postController.rejectPost
+);
+
+/**
+ * 📊 MÉTRICAS
+ * -----------------------------------------------------
+ * GET /metrics
+ */
+router.get(
+  "/metrics",
+  authMiddleware,
+  allowRoles("ADMIN"),
+  postController.getMetrics
 );
 
 module.exports = router;

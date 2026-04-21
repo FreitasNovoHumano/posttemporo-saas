@@ -3,7 +3,7 @@
  * ----------------------------------------
  * Responsável por:
  * ✔ Criar post
- * ✔ Listar posts do usuário
+ * ✔ Listar posts (com filtro)
  * ✔ Atualizar post
  * ✔ Deletar post
  * ✔ Agendar post
@@ -14,41 +14,78 @@
 const postService = require("../services/postService");
 
 /**
+ * 🧱 Helper de erro padrão
+ */
+function handleError(res, error, message = "Erro interno") {
+  console.error(`❌ ${message}:`, error);
+  return res.status(500).json({
+    error: error.message || message,
+  });
+}
+
+/**
  * 🔹 Criar post (com upload de imagem)
  */
 async function createPost(req, res) {
   try {
+    const { title, description } = req.body;
+
+    if (!title) {
+      return res.status(400).json({
+        error: "Título é obrigatório",
+      });
+    }
+
     const data = {
-      title: req.body.title,
-      description: req.body.description,
+      title,
+      description,
       image: req.file ? req.file.filename : null,
     };
 
     const post = await postService.createPost(data, req.userId);
 
-    res.status(201).json(post);
+    return res.status(201).json({
+      message: "Post criado com sucesso",
+      data: post,
+    });
+
   } catch (error) {
-    console.error("❌ Erro ao criar post:", error);
-    res.status(500).json({ error: error.message });
+    return handleError(res, error, "Erro ao criar post");
   }
 }
 
 /**
- * 🔹 Listar posts do usuário autenticado
+ * 🔹 Listar posts (com filtro e busca)
+ * -----------------------------------------------------
+ * Query params:
+ * ?status=APPROVED
+ * ?search=marketing
  */
 async function getPosts(req, res) {
   try {
-    const posts = await postService.getPosts(req.userId);
+    const { status, search } = req.query;
 
-    res.json(posts);
+    /**
+     * 🔥 Toda lógica fica no service (padrão profissional)
+     */
+    const posts = await postService.getPosts({
+      userId: req.userId,
+      role: req.user?.role,
+      status,
+      search,
+    });
+
+    return res.json({
+      data: posts,
+    });
+
   } catch (error) {
-    console.error("❌ Erro ao buscar posts:", error);
-    res.status(500).json({ error: error.message });
+    return handleError(res, error, "Erro ao buscar posts");
   }
 }
 
 /**
- * 🔹 Atualizar post (título/descrição)
+ * 🔹 Atualizar post
  */
 async function updatePost(req, res) {
   try {
@@ -58,39 +95,56 @@ async function updatePost(req, res) {
     const post = await postService.updatePost(
       id,
       { title, description },
-      req.userId
+      req.userId,
+      req.user?.role
     );
 
-    res.json(post);
+    return res.json({
+      message: "Post atualizado",
+      data: post,
+    });
+
   } catch (error) {
-    console.error("❌ Erro ao atualizar post:", error);
-    res.status(500).json({ error: error.message });
+    return handleError(res, error, "Erro ao atualizar post");
   }
 }
 
 /**
  * 🔹 Deletar post
+ * ❗ ADMIN pode deletar qualquer post
  */
 async function deletePost(req, res) {
   try {
     const { id } = req.params;
 
-    await postService.deletePost(id, req.userId);
+    await postService.deletePost(
+      id,
+      req.userId,
+      req.user?.role
+    );
 
-    res.json({ message: "Post deletado com sucesso" });
+    return res.json({
+      message: "Post deletado com sucesso",
+    });
+
   } catch (error) {
-    console.error("❌ Erro ao deletar post:", error);
-    res.status(500).json({ error: error.message });
+    return handleError(res, error, "Erro ao deletar post");
   }
 }
 
 /**
- * 🔹 Agendar post (calendário)
+ * 🔹 Agendar post (usado no calendário)
  */
 async function schedulePost(req, res) {
   try {
     const { id } = req.params;
     const { date } = req.body;
+
+    if (!date) {
+      return res.status(400).json({
+        error: "Data é obrigatória",
+      });
+    }
 
     const post = await postService.schedulePost(
       id,
@@ -98,15 +152,18 @@ async function schedulePost(req, res) {
       req.userId
     );
 
-    res.json(post);
+    return res.json({
+      message: "Post agendado com sucesso",
+      data: post,
+    });
+
   } catch (error) {
-    console.error("❌ Erro ao agendar post:", error);
-    res.status(500).json({ error: error.message });
+    return handleError(res, error, "Erro ao agendar post");
   }
 }
 
 /**
- * 🔹 Aprovar post
+ * 🔹 Aprovar post (ADMIN)
  */
 async function approvePost(req, res) {
   try {
@@ -117,15 +174,18 @@ async function approvePost(req, res) {
       req.userId
     );
 
-    res.json(post);
+    return res.json({
+      message: "Post aprovado",
+      data: post,
+    });
+
   } catch (error) {
-    console.error("❌ Erro ao aprovar post:", error);
-    res.status(500).json({ error: error.message });
+    return handleError(res, error, "Erro ao aprovar post");
   }
 }
 
 /**
- * 🔹 Rejeitar post
+ * 🔹 Rejeitar post (ADMIN)
  */
 async function rejectPost(req, res) {
   try {
@@ -138,10 +198,13 @@ async function rejectPost(req, res) {
       req.userId
     );
 
-    res.json(post);
+    return res.json({
+      message: "Post rejeitado",
+      data: post,
+    });
+
   } catch (error) {
-    console.error("❌ Erro ao rejeitar post:", error);
-    res.status(500).json({ error: error.message });
+    return handleError(res, error, "Erro ao rejeitar post");
   }
 }
 
@@ -152,24 +215,22 @@ async function getMetrics(req, res) {
   try {
     const metrics = await postService.getMetrics(req.userId);
 
-    res.json(metrics);
+    return res.json({
+      data: metrics,
+    });
+
   } catch (error) {
-    console.error("❌ Erro ao buscar métricas:", error);
-    res.status(500).json({ error: error.message });
+    return handleError(res, error, "Erro ao buscar métricas");
   }
 }
 
 /**
  * 📦 EXPORTAÇÃO
- * ----------------------------------------
- * 🔥 ESSENCIAL: todas as funções precisam estar aqui
- * senão o Express quebra com:
- * "handler must be a function"
  */
 module.exports = {
   createPost,
   getPosts,
-  updatePost,      // 🔥 ESSENCIAL (era o seu erro)
+  updatePost,
   deletePost,
   schedulePost,
   approvePost,

@@ -33,6 +33,11 @@ function authMiddleware(req, res, next) {
       error: "Token inválido",
     });
   }
+
+  req.user = {
+  id: decoded.id,
+  role: decoded.role
+};
 }
 
 module.exports = authMiddleware;

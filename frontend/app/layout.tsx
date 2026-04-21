@@ -2,11 +2,11 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-// 🔹 Contexto global de autenticação
+// 🔹 Contexto global
 import { AuthProvider } from "../context/AuthContext";
 
 /**
- * 🔤 Fontes padrão do projeto
+ * 🔤 Configuração de fontes (Next.js otimizado)
  */
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 });
 
 /**
- * 📄 Metadata da aplicação
+ * 📄 Metadata global da aplicação
  */
 export const metadata: Metadata = {
   title: "PostTempero",
@@ -28,8 +28,15 @@ export const metadata: Metadata = {
 
 /**
  * 🧠 RootLayout (Server Component)
- * -----------------------------------
- * Responsável por envolver toda a aplicação
+ * --------------------------------------------------
+ * Responsável por:
+ * - Estrutura HTML base
+ * - Fontes globais
+ * - Providers globais (Auth, Theme, etc)
+ *
+ * ❌ NÃO deve conter:
+ * - Componentes de página (Dashboard, Posts, etc)
+ * - Lógica de UI específica
  */
 export default function RootLayout({
   children,
@@ -37,7 +44,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-br">
+    <html lang="pt-BR">
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         
         {/* 🔐 Provider global de autenticação */}
