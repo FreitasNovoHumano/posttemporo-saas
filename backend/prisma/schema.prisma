@@ -7,14 +7,17 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/**
+ * =====================================================
+ * 🔐 ENUMS
+ * =====================================================
+ */
+
 enum Role {
   USER
   ADMIN
 }
 
-/**
- * 🔥 ENUM — STATUS DO POST
- */
 enum PostStatus {
   DRAFT
   SCHEDULED
@@ -23,9 +26,6 @@ enum PostStatus {
   REJECTED
 }
 
-/**
- * 🔐 ENUM — PERMISSÕES
- */
 enum Permission {
   CREATE_POST
   APPROVE_POST
@@ -34,8 +34,11 @@ enum Permission {
 }
 
 /**
- * 🏢 COMPANY
+ * =====================================================
+ * 🏢 COMPANY (MULTI-TENANT)
+ * =====================================================
  */
+
 model Company {
   id   String @id @default(uuid())
   name String
@@ -47,8 +50,11 @@ model Company {
 }
 
 /**
+ * =====================================================
  * 👤 USER
+ * =====================================================
  */
+
 model User {
   id       String  @id @default(uuid())
   email    String  @unique
@@ -60,15 +66,21 @@ model User {
   companyId String
   company   Company @relation(fields: [companyId], references: [id])
 
-  posts       Post[]
-  permissions UserPermission[]
+  posts         Post[]
+  permissions   UserPermission[]
+  notifications Notification[]
+  comments      Comment[]
+  audits        AuditLog[]
 
   createdAt DateTime @default(now())
 }
 
 /**
- * 🔐 USER PERMISSIONS (RBAC)
+ * =====================================================
+ * 🔐 PERMISSÕES (RBAC)
+ * =====================================================
  */
+
 model UserPermission {
   id         String     @id @default(uuid())
   userId     String
@@ -78,16 +90,18 @@ model UserPermission {
 }
 
 /**
+ * =====================================================
  * 📝 POST
+ * =====================================================
  */
+
 model Post {
-  id        Int        @id @default(autoincrement())
-  title     String
-  content   String
-  imageUrl  String?
-  status    PostStatus @default(DRAFT)
-  createdAt DateTime   @default(now())
-}
+  id       Int     @id @default(autoincrement())
+  title    String
+  content  String
+  imageUrl String?
+
+  status PostStatus @default(DRAFT)
 
   /**
    * 👤 AUTOR
@@ -96,21 +110,27 @@ model Post {
   author   User   @relation(fields: [authorId], references: [id])
 
   /**
-   * 🏢 EMPRESA (MULTI-TENANT)
+   * 🏢 MULTI-TENANT
    */
-   model Company {
-  id    String @id @default(uuid())
-  name  String
-  users User[]
-
   companyId String
   company   Company @relation(fields: [companyId], references: [id])
 
   /**
-   * 🧾 AUDITORIA
+   * 📅 AGENDAMENTO
+   */
+  scheduledDate DateTime?
+
+  /**
+   * 🧾 APROVAÇÃO
    */
   approvedBy String?
   approvedAt DateTime?
+
+  /**
+   * 🔗 RELAÇÕES
+   */
+  comments Comment[]
+  audits   AuditLog[]
 
   /**
    * ⏱️ TEMPO
@@ -119,28 +139,57 @@ model Post {
   updatedAt DateTime @updatedAt
 }
 
+/**
+ * =====================================================
+ * 🔔 NOTIFICAÇÕES
+ * =====================================================
+ */
+
 model Notification {
-  id        String @id @default(uuid())
-  userId    String
-  message   String
-  read      Boolean @default(false)
+  id      String  @id @default(uuid())
+  userId  String
+  message String
+  read    Boolean @default(false)
+
+  user User @relation(fields: [userId], references: [id])
+
   createdAt DateTime @default(now())
 }
+
+/**
+ * =====================================================
+ * 💬 COMENTÁRIOS
+ * =====================================================
+ */
 
 model Comment {
-  id        Int      @id @default(autoincrement())
-  content   String
-  postId    Int
-  userId    Int
-  createdAt DateTime @default(now())
+  id      Int    @id @default(autoincrement())
+  content String
+
+  postId Int
+  userId String
 
   post Post @relation(fields: [postId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  createdAt DateTime @default(now())
 }
 
+/**
+ * =====================================================
+ * 🧾 AUDIT LOG
+ * =====================================================
+ */
+
 model AuditLog {
-  id        Int      @id @default(autoincrement())
-  action    String
-  postId    Int
-  userId    Int
+  id     Int    @id @default(autoincrement())
+  action String
+
+  postId Int
+  userId String
+
+  post Post @relation(fields: [postId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
   createdAt DateTime @default(now())
 }

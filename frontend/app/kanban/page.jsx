@@ -2,16 +2,14 @@
 
 /**
  * =====================================================
- * 🧱 KANBAN PAGE (PRO - COMPLETO)
+ * 🧱 KANBAN PAGE (PRO + UX)
  * =====================================================
  * Responsável por:
  * - Buscar posts
- * - Drag otimista (sem reload)
- * - Deletar post
- * - Editar post (modal)
- * - Sincronizar UI
- *
- * 🔐 Protegido via JWT
+ * - Drag otimista
+ * - Editar / deletar
+ * - Tempo real (socket)
+ * - Feedback visual (toast)
  * =====================================================
  */
 
@@ -21,6 +19,10 @@ import { io } from "socket.io-client";
 import KanbanBoard from "@/components/kanban/KanbanBoard";
 import Notifications from "@/app/components/notifications/Notifications";
 import PostModal from "@/components/kanban/PostModal";
+
+import PageTransition from "@/app/components/ui/PageTransition";
+import Skeleton from "@/app/components/ui/Skeleton";
+import toast from "react-hot-toast";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
@@ -32,18 +34,17 @@ export default function KanbanPage() {
    */
   const [posts, setPosts] = useState([]);
   const [selectedPost, setSelectedPost] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   /**
    * =====================================================
-   * 🔌 SOCKET (TEMPO REAL)
+   * 🔌 SOCKET (REALTIME)
    * =====================================================
    */
   useEffect(() => {
     const socket = io(API_URL);
 
-    socket.on("refreshPosts", () => {
-      fetchPosts();
-    });
+    socket.on("refreshPosts", fetchPosts);
 
     return () => socket.disconnect();
   }, []);
@@ -55,6 +56,8 @@ export default function KanbanPage() {
    */
   async function fetchPosts() {
     try {
+      setLoading(true);
+
       const res = await fetch(`${API_URL}/posts`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -64,8 +67,11 @@ export default function KanbanPage() {
       const json = await res.json();
       setPosts(json.data);
 
-    } catch (error) {
-      console.error("❌ Erro ao buscar posts:", error);
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao carregar posts");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -79,7 +85,7 @@ export default function KanbanPage() {
    * =====================================================
    */
   async function handleMove({ postId, newStatus }) {
-    const previous = [...posts];
+    const backup = [...posts];
 
     setPosts((prev) =>
       prev.map((p) =>
@@ -99,15 +105,17 @@ export default function KanbanPage() {
         body: JSON.stringify({ status: newStatus }),
       });
 
-    } catch (error) {
-      console.error("❌ Erro no drag:", error);
-      setPosts(previous);
+      toast.success("Status atualizado 🚀");
+
+    } catch (err) {
+      setPosts(backup);
+      toast.error("Erro ao mover post");
     }
   }
 
   /**
    * =====================================================
-   * 🗑️ DELETAR POST
+   * 🗑️ DELETE
    * =====================================================
    */
   async function handleDelete(id) {
@@ -119,19 +127,17 @@ export default function KanbanPage() {
         },
       });
 
-      /**
-       * 🔁 Atualiza UI
-       */
       setPosts((prev) => prev.filter((p) => p.id !== id));
+      toast.success("Post deletado");
 
-    } catch (error) {
-      console.error("❌ Erro ao deletar:", error);
+    } catch {
+      toast.error("Erro ao deletar");
     }
   }
 
   /**
    * =====================================================
-   * ✏️ EDITAR POST (MODAL)
+   * ✏️ UPDATE
    * =====================================================
    */
   async function handleUpdate(post) {
@@ -142,20 +148,29 @@ export default function KanbanPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
-        body: JSON.stringify({
-          title: post.title,
-          description: post.description,
-        }),
+        body: JSON.stringify(post),
       });
 
-      /**
-       * 🔁 Atualiza lista
-       */
       fetchPosts();
+      toast.success("Post atualizado");
 
-    } catch (error) {
-      console.error("❌ Erro ao atualizar:", error);
+    } catch {
+      toast.error("Erro ao atualizar");
     }
+  }
+
+  /**
+   * =====================================================
+   * ⏳ LOADING
+   * =====================================================
+   */
+  if (loading) {
+    return (
+      <div className="p-6 space-y-4">
+        <Skeleton className="h-10 w-1/3" />
+        <Skeleton className="h-[400px] w-full" />
+      </div>
+    );
   }
 
   /**
@@ -164,34 +179,32 @@ export default function KanbanPage() {
    * =====================================================
    */
   return (
-    <div className="p-6 space-y-6">
-      {/* HEADER */}
-      <div>
-        <h1 className="text-2xl font-bold">Kanban</h1>
-        <p className="text-gray-600">
-          Gerencie seus posts com drag & drop
-        </p>
-      </div>
+    <PageTransition>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">Kanban</h1>
+          <p className="text-gray-600">
+            Gerencie seus posts com drag & drop
+          </p>
+        </div>
 
-      {/* BOARD */}
-      <KanbanBoard
-        posts={posts}
-        onMove={handleMove}
-        onCardClick={setSelectedPost}   // 🔥 abrir modal
-        onDelete={handleDelete}         // 🔥 menu ⋮
-      />
-
-      {/* MODAL */}
-      {selectedPost && (
-        <PostModal
-          post={selectedPost}
-          onClose={() => setSelectedPost(null)}
-          onSave={handleUpdate}
+        <KanbanBoard
+          posts={posts}
+          onMove={handleMove}
+          onCardClick={setSelectedPost}
+          onDelete={handleDelete}
         />
-      )}
 
-      {/* NOTIFICAÇÕES */}
-      <Notifications />
-    </div>
+        {selectedPost && (
+          <PostModal
+            post={selectedPost}
+            onClose={() => setSelectedPost(null)}
+            onSave={handleUpdate}
+          />
+        )}
+
+        <Notifications />
+      </div>
+    </PageTransition>
   );
 }

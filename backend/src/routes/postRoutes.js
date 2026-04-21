@@ -4,11 +4,12 @@ const router = express.Router();
 const postController = require("../controllers/postController");
 const authMiddleware = require("../middlewares/authMiddleware");
 const allowRoles = require("../middlewares/roleMiddleware");
+const companyMiddleware = require("../middlewares/companyMiddleware"); // 🔥 NOVO
 const upload = require("../config/upload");
 
 /**
  * =====================================================
- * 📝 POST ROUTES
+ * 📝 POST ROUTES (MULTI-TENANT READY)
  * =====================================================
  * Responsável por:
  * - CRUD de posts
@@ -16,7 +17,11 @@ const upload = require("../config/upload");
  * - Aprovação / Rejeição
  * - Métricas
  *
- * 🔐 Todas rotas protegidas por autenticação
+ * 🔐 Proteção:
+ * - authMiddleware → usuário autenticado
+ * - companyMiddleware → isolamento por empresa
+ * - allowRoles → controle de permissões
+ * =====================================================
  */
 
 /**
@@ -27,6 +32,7 @@ const upload = require("../config/upload");
 router.get(
   "/posts",
   authMiddleware,
+  companyMiddleware, // 🔥 ISOLAMENTO
   allowRoles("ADMIN", "USER"),
   postController.getPosts
 );
@@ -39,6 +45,7 @@ router.get(
 router.post(
   "/posts",
   authMiddleware,
+  companyMiddleware,
   allowRoles("ADMIN", "USER"),
   upload.single("image"),
   postController.createPost
@@ -52,6 +59,7 @@ router.post(
 router.put(
   "/posts/:id",
   authMiddleware,
+  companyMiddleware,
   allowRoles("ADMIN", "USER"),
   postController.updatePost
 );
@@ -64,6 +72,7 @@ router.put(
 router.delete(
   "/posts/:id",
   authMiddleware,
+  companyMiddleware,
   allowRoles("ADMIN"),
   postController.deletePost
 );
@@ -76,6 +85,7 @@ router.delete(
 router.put(
   "/posts/:id/schedule",
   authMiddleware,
+  companyMiddleware,
   allowRoles("ADMIN", "USER"),
   postController.schedulePost
 );
@@ -88,6 +98,7 @@ router.put(
 router.put(
   "/posts/:id/approve",
   authMiddleware,
+  companyMiddleware,
   allowRoles("ADMIN"),
   postController.approvePost
 );
@@ -100,6 +111,7 @@ router.put(
 router.put(
   "/posts/:id/reject",
   authMiddleware,
+  companyMiddleware,
   allowRoles("ADMIN"),
   postController.rejectPost
 );
@@ -107,11 +119,12 @@ router.put(
 /**
  * 📊 MÉTRICAS
  * -----------------------------------------------------
- * GET /metrics
+ * GET /posts/metrics
  */
 router.get(
-  "/metrics",
+  "/posts/metrics",
   authMiddleware,
+  companyMiddleware,
   allowRoles("ADMIN"),
   postController.getMetrics
 );

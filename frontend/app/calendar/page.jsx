@@ -2,27 +2,24 @@
 
 /**
  * =====================================================
- * 📅 CALENDAR PAGE (PRO - ESTILO INSTAGRAM)
+ * 📅 CALENDAR PAGE (PRO)
  * =====================================================
  * Responsável por:
  * - Buscar posts do backend
- * - Transformar posts em eventos visuais
- * - Permitir drag & drop (reagendar)
- * - Atualizar em tempo real (WebSocket)
+ * - Converter posts → eventos do calendário
+ * - Reagendar posts (drag & drop)
+ * - Exibir loading / error
  *
- * Integração:
- * - GET /posts
- * - PUT /posts/:id/schedule
+ * 🔐 Protegido via JWT
  * =====================================================
  */
 
 import { useEffect, useState } from "react";
-import { io } from "socket.io-client";
 import CalendarView from "@/components/calendar/CalendarView";
+import PageTransition from "@/app/components/ui/PageTransition";
+import Skeleton from "@/app/components/ui/Skeleton";
+import toast from "react-hot-toast";
 
-/**
- * 🔹 API
- */
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export default function CalendarPage() {
@@ -37,22 +34,7 @@ export default function CalendarPage() {
 
   /**
    * =====================================================
-   * 🔌 SOCKET (TEMPO REAL)
-   * =====================================================
-   */
-  useEffect(() => {
-    const socket = io(API_URL);
-
-    socket.on("refreshPosts", () => {
-      fetchPosts();
-    });
-
-    return () => socket.disconnect();
-  }, []);
-
-  /**
-   * =====================================================
-   * 🔄 FETCH POSTS
+   * 🔄 FETCH POSTS → EVENTS
    * =====================================================
    */
   async function fetchPosts() {
@@ -70,58 +52,40 @@ export default function CalendarPage() {
       const json = await res.json();
 
       /**
-       * 🔥 POSTS → EVENTOS (COM IMAGEM)
+       * 🔄 Converter posts → eventos
        */
       const formatted = json.data
-        .filter((post) => post.scheduledDate)
-        .map((post) => ({
-          id: post.id,
-          title: post.title,
-          start: new Date(post.scheduledDate),
-          end: new Date(post.scheduledDate),
-          status: post.status,
-          image: post.image, // 🔥 NOVO
+        .filter((p) => p.scheduledDate)
+        .map((p) => ({
+          id: p.id,
+          title: p.title,
+          start: new Date(p.scheduledDate),
+          end: new Date(p.scheduledDate),
+          status: p.status,
+          image: p.image,
         }));
 
       setEvents(formatted);
 
     } catch (err) {
-      console.error("❌ Erro ao carregar calendário:", err);
-      setError(err.message || "Erro inesperado");
+      console.error(err);
+      setError(err.message);
+      toast.error("Erro ao carregar calendário");
     } finally {
       setLoading(false);
     }
   }
 
-  /**
-   * 🚀 LOAD INICIAL
-   */
   useEffect(() => {
     fetchPosts();
   }, []);
 
   /**
    * =====================================================
-   * ⚡ DRAG OTIMISTA (SEM RELOAD TOTAL)
+   * 🔄 DRAG → SALVAR NO BACKEND
    * =====================================================
    */
   async function handleMoveEvent({ id, newStart }) {
-    /**
-     * 🧠 Backup
-     */
-    const previous = [...events];
-
-    /**
-     * ⚡ Atualiza UI instantaneamente
-     */
-    setEvents((prev) =>
-      prev.map((e) =>
-        e.id === id
-          ? { ...e, start: newStart, end: newStart }
-          : e
-      )
-    );
-
     try {
       await fetch(`${API_URL}/posts/${id}/schedule`, {
         method: "PUT",
@@ -134,13 +98,12 @@ export default function CalendarPage() {
         }),
       });
 
-    } catch (err) {
-      console.error("❌ Erro ao reagendar:", err);
+      toast.success("Post reagendado 📅");
+      fetchPosts();
 
-      /**
-       * 🔙 Rollback
-       */
-      setEvents(previous);
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao reagendar");
     }
   }
 
@@ -151,21 +114,20 @@ export default function CalendarPage() {
    */
   if (loading) {
     return (
-      <div className="p-6">
-        <p>Carregando calendário...</p>
+      <div className="p-6 space-y-4">
+        <Skeleton className="h-10 w-1/3" />
+        <Skeleton className="h-[500px] w-full" />
       </div>
     );
   }
 
   /**
-   * =====================================================
    * ❌ ERROR
-   * =====================================================
    */
   if (error) {
     return (
       <div className="p-6 text-red-500">
-        <p>Erro: {error}</p>
+        Erro: {error}
       </div>
     );
   }
@@ -176,20 +138,20 @@ export default function CalendarPage() {
    * =====================================================
    */
   return (
-    <div className="p-6 space-y-6">
-      {/* HEADER */}
-      <div>
-        <h1 className="text-2xl font-bold">Calendário</h1>
-        <p className="text-gray-600">
-          Gerencie seus posts agendados
-        </p>
-      </div>
+    <PageTransition>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">Calendário</h1>
+          <p className="text-gray-600">
+            Gerencie seus posts agendados
+          </p>
+        </div>
 
-      {/* CALENDÁRIO */}
-      <CalendarView
-        events={events}
-        onMoveEvent={handleMoveEvent}
-      />
-    </div>
+        <CalendarView
+          events={events}
+          onMoveEvent={handleMoveEvent}
+        />
+      </div>
+    </PageTransition>
   );
 }

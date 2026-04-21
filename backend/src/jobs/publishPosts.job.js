@@ -3,40 +3,60 @@ const prisma = require("../lib/prisma");
 
 /**
  * =====================================================
- * ⏰ JOB — PUBLICAR POSTS AUTOMATICAMENTE
+ * ⏰ JOB: PUBLICAR POSTS AUTOMATICAMENTE
  * =====================================================
  * - Roda a cada minuto
- * - Atualiza posts agendados para publicados
+ * - Busca posts agendados
+ * - Publica automaticamente
+ * =====================================================
  */
 
-function startPublishPostsJob() {
+function startPublishPostsJob(io) {
   cron.schedule("* * * * *", async () => {
     try {
-      const result = await prisma.post.updateMany({
+      const now = new Date();
+
+      const posts = await prisma.post.findMany({
         where: {
-          scheduledDate: { lte: new Date() },
+          scheduledDate: {
+            lte: now,
+          },
           status: "SCHEDULED",
-        },
-        data: {
-          status: "PUBLISHED",
         },
       });
 
-      if (result.count > 0) {
-        console.log(`🚀 ${result.count} posts publicados automaticamente`);
+      if (posts.length === 0) return;
+
+      for (const post of posts) {
+        await prisma.post.update({
+          where: { id: post.id },
+          data: {
+            status: "PUBLISHED",
+          },
+        });
+
+        /**
+         * 🔔 Notificação
+         */
+        await prisma.notification.create({
+          data: {
+            userId: post.userId,
+            message: `Seu post "${post.title}" foi publicado 🚀`,
+          },
+        });
       }
 
+      /**
+       * 🔌 Atualiza frontend (tempo real)
+       */
+      io.emit("refreshPosts");
+
+      console.log(`✅ ${posts.length} posts publicados automaticamente`);
+
     } catch (error) {
-      console.error("❌ Erro no cron de publicação:", error);
+      console.error("❌ Erro no cron:", error);
     }
   });
-
-  await prisma.notification.create({
-  data: {
-    userId: post.userId,
-    message: "Post publicado automaticamente 🚀",
-  },
-});
 }
 
 module.exports = startPublishPostsJob;
