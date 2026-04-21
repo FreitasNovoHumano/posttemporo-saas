@@ -1,5 +1,6 @@
 const prisma = require("../lib/prisma");
-const { io } = require("../server"); // 🔥 IMPORTANTE
+const { io } = require("../server");
+const audit = require("./auditService");
 
 /**
  * =====================================================
@@ -27,9 +28,7 @@ function getStatusByDate(date) {
   const now = new Date();
   const target = new Date(date);
 
-  if (target > now) return STATUS.SCHEDULED;
-
-  return STATUS.PUBLISHED;
+  return target > now ? STATUS.SCHEDULED : STATUS.PUBLISHED;
 }
 
 async function findPostOrThrow(id) {
@@ -46,6 +45,13 @@ function checkPermission(post, userId, role) {
   if (role !== "ADMIN" && post.userId !== userId) {
     throw new Error("Não autorizado");
   }
+}
+
+/**
+ * 🔄 Disparos globais (centralizado)
+ */
+function emitUpdate() {
+  io.emit("refreshPosts");
 }
 
 /**
@@ -68,8 +74,9 @@ async function createPost(data, userId) {
     },
   });
 
-  io.emit("refreshPosts"); // 🔥 tempo real
+  await audit.logAction("CREATE", post.id, userId);
 
+  emitUpdate();
   return post;
 }
 
@@ -98,6 +105,31 @@ async function getPosts({ userId, role, status, search }) {
 
 /**
  * =====================================================
+ * 🔹 ATUALIZAR POST (KANBAN + EDIT)
+ * =====================================================
+ */
+async function updatePost(id, data, userId, role) {
+  const post = await findPostOrThrow(id);
+
+  checkPermission(post, userId, role);
+
+  const updated = await prisma.post.update({
+    where: { id: Number(id) },
+    data: {
+      title: data.title,
+      description: data.description,
+      status: data.status || post.status,
+    },
+  });
+
+  await audit.logAction("UPDATE", id, userId);
+
+  emitUpdate();
+  return updated;
+}
+
+/**
+ * =====================================================
  * 🔹 APROVAR POST
  * =====================================================
  */
@@ -116,9 +148,6 @@ async function approvePost(postId, userId) {
     },
   });
 
-  /**
-   * 🔔 Notificação
-   */
   await prisma.notification.create({
     data: {
       userId: post.userId,
@@ -126,8 +155,9 @@ async function approvePost(postId, userId) {
     },
   });
 
-  io.emit("refreshPosts"); // 🔥 tempo real
+  await audit.logAction("APPROVED", postId, userId);
 
+  emitUpdate();
   return updated;
 }
 
@@ -158,32 +188,9 @@ async function rejectPost(postId, comment, userId) {
     },
   });
 
-  io.emit("refreshPosts"); // 🔥 tempo real
+  await audit.logAction("REJECTED", postId, userId);
 
-  return updated;
-}
-
-/**
- * =====================================================
- * 🔹 ATUALIZAR POST (KANBAN)
- * =====================================================
- */
-async function updatePost(id, data, userId, role) {
-  const post = await findPostOrThrow(id);
-
-  checkPermission(post, userId, role);
-
-  const updated = await prisma.post.update({
-    where: { id: Number(id) },
-    data: {
-      title: data.title,
-      description: data.description,
-      status: data.status, // 🔥 importante pro Kanban
-    },
-  });
-
-  io.emit("refreshPosts"); // 🔥 tempo real
-
+  emitUpdate();
   return updated;
 }
 
@@ -197,13 +204,13 @@ async function deletePost(id, userId, role) {
 
   checkPermission(post, userId, role);
 
-  const deleted = await prisma.post.delete({
+  await prisma.post.delete({
     where: { id: Number(id) },
   });
 
-  io.emit("refreshPosts");
+  await audit.logAction("DELETE", id, userId);
 
-  return deleted;
+  emitUpdate();
 }
 
 /**
@@ -228,8 +235,9 @@ async function schedulePost(id, date, userId) {
     },
   });
 
-  io.emit("refreshPosts");
+  await audit.logAction("SCHEDULED", id, userId);
 
+  emitUpdate();
   return updated;
 }
 
@@ -241,10 +249,9 @@ async function schedulePost(id, date, userId) {
 module.exports = {
   createPost,
   getPosts,
-  getMetrics,
+  updatePost,
   approvePost,
   rejectPost,
-  updatePost,
   deletePost,
   schedulePost,
 };

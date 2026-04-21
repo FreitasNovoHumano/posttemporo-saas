@@ -126,3 +126,21 @@ model Notification {
   read      Boolean @default(false)
   createdAt DateTime @default(now())
 }
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  content   String
+  postId    Int
+  userId    Int
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id])
+}
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  action    String
+  postId    Int
+  userId    Int
+  createdAt DateTime @default(now())
+}

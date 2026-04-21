@@ -82,11 +82,13 @@ const authRoutes = require("./routes/authRoutes");
 const postRoutes = require("./routes/postRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const notificationRoutes = require("./routes/notificationRoutes"); // 🔥 novo
+const commentRoutes = require("./routes/commentRoutes");
 
 app.use("/auth", authRoutes);
 app.use("/posts", postRoutes);
 app.use("/dashboard", dashboardRoutes);
-app.use("/", notificationRoutes);
+app.use("/notifications", notificationRoutes);
+app.use("/comments", commentRoutes);
 
 /**
  * =====================================================
