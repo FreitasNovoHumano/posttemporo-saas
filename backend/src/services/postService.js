@@ -1,6 +1,6 @@
 const prisma = require("../lib/prisma");
 const { io } = require("../server");
-const audit = require("./auditService");
+const authService = require('./authService');
 
 /**
  * =====================================================

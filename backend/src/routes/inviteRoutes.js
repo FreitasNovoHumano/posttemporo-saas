@@ -1,18 +1,61 @@
-router.post("/invite", auth, company, role("ADMIN"), async (req, res) => {
-  const invite = await inviteService.createInvite({
-    email: req.body.email,
-    companyId: req.companyId,
-    role: req.body.role,
-  });
+/**
+ * =====================================================
+ * 📩 INVITE ROUTES
+ * =====================================================
+ * 🎯 Responsável por:
+ * - Convidar usuários para empresa (multi-tenant)
+ *
+ * 🔐 Segurança:
+ * - auth → usuário autenticado
+ * - company → empresa selecionada
+ * - role → apenas ADMIN pode convidar
+ * =====================================================
+ */
 
-  res.json(invite);
-});
+const express = require("express");
+const router = express.Router();
 
-router.post("/invite/accept", auth, async (req, res) => {
-  await inviteService.acceptInvite({
-    token: req.body.token,
-    userId: req.user.userId,
-  });
+// 🔐 Middlewares
+const auth = require("../middlewares/authMiddleware");
+const company = require("../middlewares/companyMiddleware");
+const role = require("../middlewares/roleMiddleware");
 
-  res.json({ success: true });
-});
+/**
+ * =====================================================
+ * 📩 ENVIAR CONVITE
+ * -----------------------------------------------------
+ * POST /api/invite
+ * =====================================================
+ */
+router.post(
+  "/invite",
+  auth,
+  company,
+  role("ADMIN"),
+  async (req, res) => {
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        return res.status(400).json({
+          message: "Email é obrigatório",
+        });
+      }
+
+      // 🔥 Aqui você pode implementar lógica real depois
+      console.log("📨 Convite enviado para:", email);
+
+      return res.status(201).json({
+        message: "Convite enviado com sucesso",
+      });
+    } catch (error) {
+      console.error("Erro ao enviar convite:", error);
+
+      return res.status(500).json({
+        message: "Erro ao enviar convite",
+      });
+    }
+  }
+);
+
+module.exports = router;

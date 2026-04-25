@@ -15,17 +15,32 @@ export function CompanyProvider({ children }) {
     fetchCompanies();
   }, []);
 
-  async function fetchCompanies() {
-    const res = await fetch("http://localhost:3001/api/v1/auth/me", {
+  async function fetchCompanies(token) {
+  try {
+    const res = await fetch("http://localhost:3001/api/auth/me", {
       headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
+        Authorization: `Bearer ${token}`,
       },
     });
+
+    // 🔥 CASO NÃO AUTORIZADO → NÃO QUEBRA
+    if (res.status === 401) {
+      console.warn("Usuário não autenticado");
+      return;
+    }
+
+    if (!res.ok) {
+      console.warn("Erro inesperado na API");
+      return;
+    }
 
     const user = await res.json();
 
     setCompanies(user.memberships || []);
+  } catch (error) {
+    console.error("Erro ao buscar empresas:", error);
   }
+}
 
   function switchCompany(id) {
     localStorage.setItem("companyId", id);

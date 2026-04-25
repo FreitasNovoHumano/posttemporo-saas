@@ -1,26 +1,65 @@
+/**
+ * =====================================================
+ * 🔔 NOTIFICATION ROUTES
+ * =====================================================
+ * 🎯 Responsável por:
+ * - Listar notificações do usuário autenticado
+ *
+ * 🔐 Segurança:
+ * - Requer autenticação (JWT)
+ *
+ * 📦 Dependências:
+ * - Prisma (banco de dados)
+ * =====================================================
+ */
+
 const express = require("express");
 const router = express.Router();
+
 const prisma = require("../lib/prisma");
-const authMiddleware = require("../middlewares/authMiddleware");
+
+// 🔐 Middleware de autenticação
+const auth = require("../middlewares/authMiddleware");
 
 /**
+ * =====================================================
  * 🔔 LISTAR NOTIFICAÇÕES
+ * -----------------------------------------------------
+ * GET /api/notifications
+ *
+ * 📥 Query Params:
+ * - page (opcional) → padrão: 1
+ * - limit (opcional) → padrão: 10
+ *
+ * 📤 Retorno:
+ * - Lista paginada de notificações do usuário logado
+ * =====================================================
  */
 router.get("/", auth, async (req, res) => {
-  const { page = 1, limit = 10 } = req.query;
+  try {
+    // 🔹 Paginação
+    const page = Number(req.query.page) || 1;
+    const limit = Number(req.query.limit) || 10;
 
-  const notifications = await prisma.notification.findMany({
-    where: {
-      userId: req.user.id,
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-    skip: (page - 1) * limit,
-    take: Number(limit),
-  });
+    const notifications = await prisma.notification.findMany({
+      where: {
+        userId: req.user.id, // 🔐 vem do middleware auth
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
 
-  res.json(notifications);
+    return res.json(notifications);
+  } catch (error) {
+    console.error("Erro ao buscar notificações:", error);
+
+    return res.status(500).json({
+      message: "Erro ao buscar notificações",
+    });
+  }
 });
 
 module.exports = router;
