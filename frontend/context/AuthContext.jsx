@@ -1,51 +1,91 @@
 "use client";
 
-import { createContext, useContext, useState } from "react";
-import { apiFetch, setAccessToken } from "@/services/api";
+import { createContext, useContext, useState, useEffect } from "react";
+import {
+  loginUser,
+  logoutUser,
+  getMe,
+} from "@/services/api";
 
 const AuthContext = createContext(null);
 
+/**
+ * =====================================================
+ * 🔐 AUTH CONTEXT (PRO - AUTO RESTORE + CLEAN ARCH)
+ * =====================================================
+ *
+ * 🎯 RESPONSABILIDADES:
+ * - Login / Logout
+ * - Manter usuário em memória
+ * - Restaurar sessão após F5
+ *
+ * =====================================================
+ */
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
+  /**
+   * 🔄 RESTORE SESSION (ao carregar app)
+   */
+  useEffect(() => {
+    async function restoreSession() {
+      const { data, error } = await getMe();
+
+      if (!error && data) {
+        setUser(data);
+      }
+
+      setLoading(false);
+    }
+
+    restoreSession();
+  }, []);
+
+  /**
+   * 🔐 LOGIN
+   */
   async function login(credentials) {
-    const res = await fetch("http://localhost:3001/api/auth/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(credentials),
-      credentials: "include",
-    });
+    const { data, error } = await loginUser(credentials);
 
-    if (!res.ok) throw new Error();
+    if (error) {
+      throw new Error(error);
+    }
 
-    const data = await res.json();
+    // 🔥 pega usuário após login
+    const me = await getMe();
 
-    // 🔥 salva access token em memória
-    setAccessToken(data.accessToken);
-
-    const me = await apiFetch("/api/auth/me");
-
-    setUser(me.data);
+    if (me.data) {
+      setUser(me.data);
+    }
   }
 
+  /**
+   * 🔓 LOGOUT
+   */
   async function logout() {
-    await fetch("http://localhost:3001/api/auth/logout", {
-      method: "POST",
-      credentials: "include",
-    });
-
+    await logoutUser();
     setUser(null);
   }
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        login,
+        logout,
+        loading, // 🔥 importante pro UI
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
 }
 
+/**
+ * 🔹 Hook
+ */
 export function useAuth() {
   return useContext(AuthContext);
 }

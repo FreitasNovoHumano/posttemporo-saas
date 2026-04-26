@@ -5,7 +5,7 @@
  *
  * 🎯 RESPONSABILIDADES:
  * - Gerenciar access token em memória
- * - Fazer refresh automático
+ * - Fazer refresh automático (com controle de concorrência)
  * - Padronizar respostas
  * - Evitar uso de localStorage
  *
@@ -24,10 +24,34 @@ const API_URL = "http://localhost:3001";
 let accessToken = null;
 
 /**
- * 🔹 Setter do token (usado no login)
+ * 🔄 Controle de refresh (evita múltiplas chamadas simultâneas)
+ */
+let isRefreshing = false;
+let refreshPromise = null;
+
+/**
+ * ⏱️ Timeout padrão (10s)
+ */
+const TIMEOUT = 10000;
+
+/**
+ * 🔹 Setter do token
  */
 export function setAccessToken(token) {
   accessToken = token;
+}
+
+/**
+ * 🔹 Helper de timeout
+ */
+function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TIMEOUT);
+
+  return fetch(url, {
+    ...options,
+    signal: controller.signal,
+  }).finally(() => clearTimeout(timeout));
 }
 
 /**
@@ -48,42 +72,66 @@ function getAuthHeaders(isFormData = false) {
 }
 
 /**
- * 🔄 REFRESH TOKEN
+ * 🔄 REFRESH TOKEN (com lock)
  */
 async function refreshToken() {
-  try {
-    const res = await fetch(`${API_URL}/api/auth/refresh`, {
-      method: "POST",
-      credentials: "include", // 🔥 envia cookie
-    });
+  if (isRefreshing && refreshPromise) {
+    return refreshPromise;
+  }
 
-    if (!res.ok) {
+  isRefreshing = true;
+
+  refreshPromise = (async () => {
+    try {
+      const res = await fetchWithTimeout(`${API_URL}/api/auth/refresh`, {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        accessToken = null;
+        return false;
+      }
+
+      const data = await res.json();
+      accessToken = data.accessToken;
+
+      return true;
+    } catch {
       accessToken = null;
       return false;
+    } finally {
+      isRefreshing = false;
+      refreshPromise = null;
     }
+  })();
 
-    const data = await res.json();
-
-    accessToken = data.accessToken;
-    return true;
-  } catch {
-    accessToken = null;
-    return false;
-  }
+  return refreshPromise;
 }
 
 /**
  * 🔥 FETCH PADRÃO COM RETRY
  */
 export async function apiFetch(url, options = {}) {
-  let res = await fetch(`${API_URL}${url}`, {
-    ...options,
-    headers: {
-      ...getAuthHeaders(options.body instanceof FormData),
-      ...(options.headers || {}),
-    },
-    credentials: "include",
-  });
+  let res;
+
+  try {
+    res = await fetchWithTimeout(`${API_URL}${url}`, {
+      ...options,
+      headers: {
+        ...getAuthHeaders(options.body instanceof FormData),
+        ...(options.headers || {}),
+      },
+      credentials: "include",
+    });
+  } catch (error) {
+    return {
+      data: null,
+      error: error.name === "AbortError"
+        ? "TIMEOUT"
+        : "NETWORK_ERROR",
+    };
+  }
 
   /**
    * 🔐 TOKEN EXPIRADO → TENTA REFRESH
@@ -95,26 +143,40 @@ export async function apiFetch(url, options = {}) {
       return { data: null, error: "UNAUTHORIZED" };
     }
 
-    // 🔁 retry da request original
-    res = await fetch(`${API_URL}${url}`, {
-      ...options,
-      headers: {
-        ...getAuthHeaders(options.body instanceof FormData),
-        ...(options.headers || {}),
-      },
-      credentials: "include",
-    });
+    // 🔁 retry
+    try {
+      res = await fetchWithTimeout(`${API_URL}${url}`, {
+        ...options,
+        headers: {
+          ...getAuthHeaders(options.body instanceof FormData),
+          ...(options.headers || {}),
+        },
+        credentials: "include",
+      });
+    } catch (error) {
+      return {
+        data: null,
+        error: "NETWORK_ERROR",
+      };
+    }
   }
 
   /**
    * ❌ ERRO HTTP
    */
   if (!res.ok) {
-    const text = await res.text();
+    let message = "Erro desconhecido";
+
+    try {
+      const json = await res.json();
+      message = json.error || message;
+    } catch {
+      message = await res.text();
+    }
 
     return {
       data: null,
-      error: `HTTP_${res.status}: ${text}`,
+      error: `HTTP_${res.status}: ${message}`,
     };
   }
 
@@ -134,13 +196,13 @@ export async function apiFetch(url, options = {}) {
 
 // 🔹 Login
 export async function loginUser(payload) {
-  const res = await fetch(`${API_URL}/api/auth/login`, {
+  const res = await fetchWithTimeout(`${API_URL}/api/auth/login`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
-    credentials: "include", // 🔥 importante
+    credentials: "include",
   });
 
   if (!res.ok) {
@@ -149,7 +211,6 @@ export async function loginUser(payload) {
 
   const data = await res.json();
 
-  // 🔥 salva access token em memória
   setAccessToken(data.accessToken);
 
   return { data, error: null };
@@ -157,7 +218,7 @@ export async function loginUser(payload) {
 
 // 🔹 Logout
 export async function logoutUser() {
-  await fetch(`${API_URL}/api/auth/logout`, {
+  await fetchWithTimeout(`${API_URL}/api/auth/logout`, {
     method: "POST",
     credentials: "include",
   });
@@ -166,7 +227,7 @@ export async function logoutUser() {
 }
 
 // 🔹 Usuário logado
-export async function getMe() {
+export function getMe() {
   return apiFetch("/api/auth/me");
 }
 

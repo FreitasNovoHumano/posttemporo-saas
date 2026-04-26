@@ -5,6 +5,14 @@ const prisma = require("../lib/prisma");
  * =====================================================
  * 🔐 AUTH CONTROLLER (PRO - SAAS READY)
  * =====================================================
+ *
+ * 🎯 RESPONSABILIDADES:
+ * - Registro de usuário + empresa
+ * - Login com RBAC (multi-tenant)
+ * - Sessão (refresh token)
+ * - Retorno de empresas do usuário
+ *
+ * =====================================================
  */
 
 /**
@@ -34,21 +42,35 @@ async function register(req, res) {
      * 🔥 TRANSACTION
      */
     const result = await prisma.$transaction(async (tx) => {
+      // 🏢 empresa
       const company = await tx.company.create({
         data: { name: companyName },
       });
 
+      // 👤 usuário
       const user = await authService.register({
         name,
         email,
         password,
       });
 
+      /**
+       * 🔐 buscar role ADMIN (RBAC)
+       */
+      const adminRole = await tx.role.findUnique({
+        where: { name: "ADMIN" },
+      });
+
+      if (!adminRole) {
+        throw new Error("Role ADMIN não encontrada");
+      }
+
+      // 🔗 membership
       await tx.membership.create({
         data: {
           userId: user.id,
           companyId: company.id,
-          role: "ADMIN",
+          roleId: adminRole.id, // 🔥 corrigido
         },
       });
 
@@ -59,14 +81,18 @@ async function register(req, res) {
      * 🔐 LOGIN AUTOMÁTICO
      */
     const { accessToken, refreshToken } =
-      await authService.login({ email, password });
+      await authService.login({
+        email,
+        password,
+        companyId: result.company.id, // 🔥 obrigatório agora
+      });
 
     /**
      * 🍪 COOKIE SEGURO
      */
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
-      secure: false, // true em produção
+      secure: false, // 🔥 true em produção
       sameSite: "strict",
       path: "/api/auth/refresh",
     });
@@ -97,19 +123,34 @@ async function register(req, res) {
  */
 async function login(req, res) {
   try {
+    const { email, password, companyId } = req.body;
+
+    if (!companyId) {
+      return res.status(400).json({
+        error: "companyId é obrigatório",
+      });
+    }
+
     const { user, accessToken, refreshToken } =
-      await authService.login(req.body);
+      await authService.login({
+        email,
+        password,
+        companyId,
+      });
 
     /**
      * 🔥 BUSCAR EMPRESAS (MULTI-TENANT)
      */
     const memberships = await prisma.membership.findMany({
       where: { userId: user.id },
-      include: { company: true },
+      include: {
+        company: true,
+        role: true,
+      },
     });
 
     /**
-     * 🍪 REFRESH TOKEN SEGURO
+     * 🍪 REFRESH TOKEN
      */
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
@@ -127,7 +168,7 @@ async function login(req, res) {
       companies: memberships.map((m) => ({
         id: m.company.id,
         name: m.company.name,
-        role: m.role,
+        role: m.role.name, // 🔥 corrigido
       })),
       accessToken,
     });
@@ -145,10 +186,13 @@ async function login(req, res) {
 async function me(req, res) {
   try {
     const user = await prisma.user.findUnique({
-      where: { id: req.user.id }, // 🔥 corrigido
+      where: { id: req.user.id },
       include: {
         memberships: {
-          include: { company: true },
+          include: {
+            company: true,
+            role: true,
+          },
         },
       },
     });
@@ -166,7 +210,7 @@ async function me(req, res) {
       companies: user.memberships.map((m) => ({
         id: m.company.id,
         name: m.company.name,
-        role: m.role,
+        role: m.role.name,
       })),
     });
 
@@ -184,7 +228,10 @@ async function me(req, res) {
  */
 async function logout(req, res) {
   res.clearCookie("refreshToken");
-  return res.json({ success: true });
+
+  return res.json({
+    success: true,
+  });
 }
 
 module.exports = {
