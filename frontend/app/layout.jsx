@@ -1,39 +1,35 @@
 /**
  * =====================================================
- * 🧱 ROOT LAYOUT (SaaS PRO)
+ * 🧱 ROOT LAYOUT (PRO - SAAS READY)
  * =====================================================
- * - Sidebar fixa (desktop)
- * - Header topo
- * - Responsivo (mobile com menu)
+ *
+ * 🎯 RESPONSABILIDADES:
+ * - Providers globais (Auth, Company)
  * - Toast global
+ * - Base HTML
+ *
+ * ❗ NÃO contém Sidebar/Header
+ * (isso vai para layout privado)
+ *
  * =====================================================
  */
 
-import Sidebar from "@/app/components/layout/Sidebar";
-import Header from "@/app/components/layout/Header";
+import { AuthProvider } from "@/context/AuthContext";
+import { CompanyProvider } from "@/context/CompanyContext";
+
 import { Toaster } from "react-hot-toast";
+
+import "./globals.css";
 
 export default function RootLayout({ children }) {
   return (
     <html lang="pt-BR">
       <body className="bg-gray-100">
-        <div className="flex h-screen">
-          
-          {/* SIDEBAR (desktop) */}
-          <Sidebar />
-
-          {/* CONTAINER PRINCIPAL */}
-          <div className="flex-1 flex flex-col">
-            
-            {/* HEADER */}
-            <Header />
-
-            {/* CONTEÚDO */}
-            <main className="flex-1 p-6 overflow-y-auto">
-              {children}
-            </main>
-          </div>
-        </div>
+        <AuthProvider>
+          <CompanyProvider>
+            {children}
+          </CompanyProvider>
+        </AuthProvider>
 
         <Toaster position="top-right" />
       </body>

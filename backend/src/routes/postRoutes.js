@@ -5,16 +5,16 @@ const postController = require("../controllers/postController");
 
 const auth = require("../middlewares/authMiddleware");
 const company = require("../middlewares/companyMiddleware");
-const role = require("../middlewares/roleMiddleware");
 
-// ❌ REMOVIDO temporariamente (estava quebrando)
-// const audit = require("../middlewares/auditMiddleware");
+// 🔐 NOVO RBAC
+const authorize = require("../middlewares/authorize");
+const { PERMISSIONS } = require("../config/permissions");
 
 const upload = require("../config/upload");
 
 /**
  * =====================================================
- * 📝 POST ROUTES (SaaS READY)
+ * 📝 POST ROUTES (RBAC - PERMISSIONS)
  * =====================================================
  */
 
@@ -25,20 +25,19 @@ router.get(
   "/posts",
   auth,
   company,
-  role("ADMIN", "EDITOR", "VIEWER"),
+  authorize(PERMISSIONS.VIEW_DASHBOARD),
   postController.getPosts
 );
 
 /**
- * ➕ CRIAR POST (com upload)
+ * ➕ CRIAR POST
  */
 router.post(
   "/posts",
   auth,
   company,
-  role("ADMIN", "EDITOR"),
+  authorize(PERMISSIONS.CREATE_POST),
   upload.single("image"),
-  // audit("CREATE_POST"), ❌ removido temporariamente
   postController.createPost
 );
 
@@ -49,8 +48,7 @@ router.put(
   "/posts/:id",
   auth,
   company,
-  role("ADMIN", "EDITOR"),
-  // audit("UPDATE_POST"),
+  authorize(PERMISSIONS.UPDATE_POST),
   postController.updatePost
 );
 
@@ -61,8 +59,7 @@ router.delete(
   "/posts/:id",
   auth,
   company,
-  role("ADMIN"),
-  // audit("DELETE_POST"),
+  authorize(PERMISSIONS.DELETE_POST),
   postController.deletePost
 );
 
@@ -73,8 +70,7 @@ router.put(
   "/posts/:id/schedule",
   auth,
   company,
-  role("ADMIN", "EDITOR"),
-  // audit("SCHEDULE_POST"),
+  authorize(PERMISSIONS.UPDATE_POST),
   postController.schedulePost
 );
 
@@ -85,8 +81,7 @@ router.put(
   "/posts/:id/approve",
   auth,
   company,
-  role("ADMIN", "EDITOR"),
-  // audit("APPROVE_POST"),
+  authorize(PERMISSIONS.APPROVE_POST),
   postController.approvePost
 );
 
@@ -97,8 +92,7 @@ router.put(
   "/posts/:id/reject",
   auth,
   company,
-  role("ADMIN", "EDITOR"),
-  // audit("REJECT_POST"),
+  authorize(PERMISSIONS.APPROVE_POST),
   postController.rejectPost
 );
 
@@ -109,7 +103,7 @@ router.get(
   "/posts/metrics",
   auth,
   company,
-  role("ADMIN"),
+  authorize(PERMISSIONS.VIEW_DASHBOARD),
   postController.getMetrics
 );
 

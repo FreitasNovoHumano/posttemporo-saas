@@ -2,10 +2,15 @@
 
 import { useRouter } from "next/navigation";
 
-export default function Timeline({ items }) {
+/**
+ * 📊 Timeline Component
+ * --------------------------------------------------
+ * Exibe atividades recentes do sistema
+ */
+export default function Timeline({ items = [] }) {
   const router = useRouter();
 
-  if (!items?.length) {
+  if (!items.length) {
     return (
       <div className="p-4 text-gray-500">
         Nenhuma atividade ainda.
@@ -20,8 +25,8 @@ export default function Timeline({ items }) {
           key={item.id}
           onClick={() => handleClick(item, router)}
           className={`flex items-start gap-3 p-4 border rounded-lg cursor-pointer
-              ${item.isRead ? "bg-white" : "bg-blue-50"}
-`}
+            ${item.isRead ? "bg-white" : "bg-blue-50"}
+          `}
         >
           {/* 👤 Avatar */}
           <div className="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold">
@@ -52,7 +57,7 @@ export default function Timeline({ items }) {
               item.action
             )}`}
           >
-            {item.action.replace("_", " ")}
+            {formatAction(item.action)}
           </div>
         </div>
       ))}
@@ -82,7 +87,7 @@ function getInitials(name = "") {
 }
 
 function formatDate(date) {
-  return new Date(date).toLocaleString();
+  return new Date(date).toLocaleString("pt-BR");
 }
 
 function formatAction(action) {

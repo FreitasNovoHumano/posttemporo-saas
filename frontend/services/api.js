@@ -1,173 +1,217 @@
-// 🔹 URL base da API
+/**
+ * =====================================================
+ * 🌐 API CLIENT (PRO - REFRESH TOKEN + HTTP-ONLY COOKIE)
+ * =====================================================
+ *
+ * 🎯 RESPONSABILIDADES:
+ * - Gerenciar access token em memória
+ * - Fazer refresh automático
+ * - Padronizar respostas
+ * - Evitar uso de localStorage
+ *
+ * 🔐 SEGURANÇA:
+ * - Refresh token em cookie HTTP-only
+ * - Access token em memória (não persistente)
+ *
+ * =====================================================
+ */
+
 const API_URL = "http://localhost:3001";
 
 /**
- * 🔐 ==========================
- * 🔐 TOKEN / AUTH HELPERS
- * 🔐 ==========================
+ * 🔐 Access Token (memória)
  */
+let accessToken = null;
 
-// 🔹 Recupera token salvo (safe para SSR)
-function getToken() {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("token");
+/**
+ * 🔹 Setter do token (usado no login)
+ */
+export function setAccessToken(token) {
+  accessToken = token;
 }
 
-// 🔹 Monta headers com token (padronizado)
-function getAuthHeaders() {
-  const token = getToken();
+/**
+ * 🔹 Headers com auth
+ */
+function getAuthHeaders(isFormData = false) {
+  const headers = {};
 
-  const headers = {
-    "Content-Type": "application/json",
-  };
+  if (!isFormData) {
+    headers["Content-Type"] = "application/json";
+  }
 
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+  if (accessToken) {
+    headers["Authorization"] = `Bearer ${accessToken}`;
   }
 
   return headers;
 }
 
 /**
- * 🔥 ==========================
- * 🔥 FETCH SEGURO (PADRÃO SÊNIOR)
- * 🔥 ==========================
+ * 🔄 REFRESH TOKEN
  */
-
-async function safeFetch(url, options = {}) {
+async function refreshToken() {
   try {
-    const res = await fetch(url, options);
+    const res = await fetch(`${API_URL}/api/auth/refresh`, {
+      method: "POST",
+      credentials: "include", // 🔥 envia cookie
+    });
 
-    // 🔐 NÃO autenticado → não quebra app
-    if (res.status === 401) {
-      console.warn("🔐 Não autenticado:", url);
-
-      // 🔥 opcional: limpa token inválido
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("token");
-      }
-
-      return null;
-    }
-
-    // 🔴 outros erros HTTP
     if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`HTTP ${res.status}: ${text}`);
+      accessToken = null;
+      return false;
     }
 
-    return await res.json();
+    const data = await res.json();
 
-  } catch (error) {
-    console.error("❌ ERRO API:", url, error.message);
-
-    // 🔥 evita crash do app
-    return null;
+    accessToken = data.accessToken;
+    return true;
+  } catch {
+    accessToken = null;
+    return false;
   }
 }
 
 /**
- * 🔐 ==========================
- * 🔐 AUTH
- * 🔐 ==========================
+ * 🔥 FETCH PADRÃO COM RETRY
  */
-
-// 🔹 Buscar usuário logado
-export async function getMe() {
-  const token = getToken();
-
-  // 🔥 NÃO chama API sem token
-  if (!token) return null;
-
-  return safeFetch(`${API_URL}/auth/me`, {
-    headers: getAuthHeaders(),
+export async function apiFetch(url, options = {}) {
+  let res = await fetch(`${API_URL}${url}`, {
+    ...options,
+    headers: {
+      ...getAuthHeaders(options.body instanceof FormData),
+      ...(options.headers || {}),
+    },
+    credentials: "include",
   });
+
+  /**
+   * 🔐 TOKEN EXPIRADO → TENTA REFRESH
+   */
+  if (res.status === 401) {
+    const refreshed = await refreshToken();
+
+    if (!refreshed) {
+      return { data: null, error: "UNAUTHORIZED" };
+    }
+
+    // 🔁 retry da request original
+    res = await fetch(`${API_URL}${url}`, {
+      ...options,
+      headers: {
+        ...getAuthHeaders(options.body instanceof FormData),
+        ...(options.headers || {}),
+      },
+      credentials: "include",
+    });
+  }
+
+  /**
+   * ❌ ERRO HTTP
+   */
+  if (!res.ok) {
+    const text = await res.text();
+
+    return {
+      data: null,
+      error: `HTTP_${res.status}: ${text}`,
+    };
+  }
+
+  /**
+   * ✅ SUCESSO
+   */
+  const data = await res.json();
+
+  return { data, error: null };
 }
 
+/**
+ * =====================================================
+ * 🔐 AUTH
+ * =====================================================
+ */
+
 // 🔹 Login
-export async function loginUser(data) {
-  return safeFetch(`${API_URL}/auth/login`, {
+export async function loginUser(payload) {
+  const res = await fetch(`${API_URL}/api/auth/login`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(data),
-  });
-}
-
-/**
- * 📦 ==========================
- * 📦 POSTS
- * 📦 ==========================
- */
-
-// 🔹 Criar post (FormData → sem Content-Type)
-export async function createPost(data) {
-  const res = await fetch(`${API_URL}/posts`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${localStorage.getItem("token")}`,
-    },
-    body: data, // 🔥 FormData
+    body: JSON.stringify(payload),
+    credentials: "include", // 🔥 importante
   });
 
-  return res.json();
-}
-
-// 🔹 Listar posts
-export async function getPosts() {
-  const token = getToken();
-
-  if (!token) return [];
-
-  return safeFetch(`${API_URL}/posts`, {
-    headers: getAuthHeaders(),
-  });
-}
-
-/**
- * 📊 ==========================
- * 📊 MÉTRICAS
- * 📊 ==========================
- */
-
-export async function getMetrics() {
-  const token = getToken();
-
-  // 🔥 fallback inteligente
-  if (!token) {
-    return {
-      total: 0,
-      approved: 0,
-      pending: 0,
-      approvalRate: 0,
-    };
+  if (!res.ok) {
+    return { data: null, error: "INVALID_CREDENTIALS" };
   }
 
-  return safeFetch(`${API_URL}/metrics`, {
-    headers: getAuthHeaders(),
+  const data = await res.json();
+
+  // 🔥 salva access token em memória
+  setAccessToken(data.accessToken);
+
+  return { data, error: null };
+}
+
+// 🔹 Logout
+export async function logoutUser() {
+  await fetch(`${API_URL}/api/auth/logout`, {
+    method: "POST",
+    credentials: "include",
+  });
+
+  accessToken = null;
+}
+
+// 🔹 Usuário logado
+export async function getMe() {
+  return apiFetch("/api/auth/me");
+}
+
+/**
+ * =====================================================
+ * 📦 POSTS
+ * =====================================================
+ */
+
+export function getPosts() {
+  return apiFetch("/api/posts");
+}
+
+export function createPost(formData) {
+  return apiFetch("/api/posts", {
+    method: "POST",
+    body: formData,
   });
 }
 
 /**
- * 🔥 ==========================
- * 🔥 APROVAÇÃO
- * 🔥 ==========================
+ * =====================================================
+ * 📊 MÉTRICAS
+ * =====================================================
  */
 
-// 🔹 Aprovar post
-export async function approvePost(id) {
-  return safeFetch(`${API_URL}/posts/${id}/approve`, {
+export function getMetrics() {
+  return apiFetch("/api/metrics");
+}
+
+/**
+ * =====================================================
+ * 🔥 APROVAÇÃO
+ * =====================================================
+ */
+
+export function approvePost(id) {
+  return apiFetch(`/api/posts/${id}/approve`, {
     method: "PUT",
-    headers: getAuthHeaders(),
   });
 }
 
-// 🔹 Rejeitar post
-export async function rejectPost(id, comment) {
-  return safeFetch(`${API_URL}/posts/${id}/reject`, {
+export function rejectPost(id, comment) {
+  return apiFetch(`/api/posts/${id}/reject`, {
     method: "PUT",
-    headers: getAuthHeaders(),
     body: JSON.stringify({ comment }),
   });
 }

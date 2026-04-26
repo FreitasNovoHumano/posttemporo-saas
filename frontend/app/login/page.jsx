@@ -1,17 +1,43 @@
 "use client";
 
+/**
+ * =====================================================
+ * 🔐 LOGIN PAGE (PRO - SAAS READY)
+ * =====================================================
+ *
+ * 🎯 RESPONSABILIDADES:
+ * - Coletar credenciais
+ * - Chamar AuthContext
+ * - Redirecionar usuário
+ *
+ * ⚙️ MELHORIAS:
+ * - Loading state
+ * - Feedback com toast
+ * - Código desacoplado
+ *
+ * =====================================================
+ */
+
 import { useState } from "react";
-import { loginUser } from "@/services/api";
 import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
+
+import { useAuth } from "@/context/AuthContext";
 
 export default function Login() {
   const router = useRouter();
+  const { login } = useAuth();
 
   const [form, setForm] = useState({
     email: "",
     password: "",
   });
 
+  const [loading, setLoading] = useState(false);
+
+  /**
+   * ✏️ Atualiza formulário
+   */
   function handleChange(e) {
     setForm({
       ...form,
@@ -19,32 +45,44 @@ export default function Login() {
     });
   }
 
+  /**
+   * 🔐 Submit login
+   */
   async function handleSubmit(e) {
     e.preventDefault();
 
-    try {
-      const data = await loginUser(form);
+    setLoading(true);
 
-      // 🔥 salva token
-      localStorage.setItem("token", data.token);
+    try {
+      await login(form);
+
+      toast.success("Login realizado com sucesso!");
 
       router.push("/dashboard");
-
     } catch (error) {
-      console.error(error);
+      toast.error("Email ou senha inválidos");
+    } finally {
+      setLoading(false);
     }
   }
 
   return (
-    <div className="flex items-center justify-center h-screen">
-      <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl shadow w-80">
-        <h1 className="text-xl font-bold mb-4">Login</h1>
+    <div className="flex items-center justify-center h-screen bg-gray-100">
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white p-6 rounded-xl shadow w-80 space-y-3"
+      >
+        <h1 className="text-xl font-bold text-center">
+          Login
+        </h1>
 
         <input
           name="email"
+          type="email"
           placeholder="Email"
           onChange={handleChange}
-          className="w-full mb-3 p-2 border"
+          className="w-full p-2 border rounded"
+          required
         />
 
         <input
@@ -52,11 +90,16 @@ export default function Login() {
           type="password"
           placeholder="Senha"
           onChange={handleChange}
-          className="w-full mb-3 p-2 border"
+          className="w-full p-2 border rounded"
+          required
         />
 
-        <button className="w-full bg-blue-600 text-white p-2 rounded">
-          Entrar
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full bg-blue-600 text-white p-2 rounded disabled:opacity-50"
+        >
+          {loading ? "Entrando..." : "Entrar"}
         </button>
       </form>
     </div>

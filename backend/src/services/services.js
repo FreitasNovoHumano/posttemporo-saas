@@ -27,3 +27,7 @@ const PORT = 3001;
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
 });
+
+// server.js
+const cookieParser = require("cookie-parser");
+app.use(cookieParser());

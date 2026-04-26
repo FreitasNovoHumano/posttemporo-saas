@@ -1,98 +1,144 @@
 "use client";
 
-import { useEffect, useState } from "react";
+/**
+ * =====================================================
+ * 📊 DASHBOARD (PRO - SAAS READY)
+ * =====================================================
+ *
+ * 🎯 RESPONSABILIDADES:
+ * - Exibir timeline
+ * - Integrar realtime (socket)
+ * - Exibir notificações
+ * - Gerenciar estados (loading / error / empty)
+ *
+ * =====================================================
+ */
+
+import { useEffect, useState, useCallback } from "react";
 import toast from "react-hot-toast";
 
 import Notifications from "@/components/notifications/Notifications";
 import Timeline from "@/components/timeline/Timeline";
 
-import PageTransition from "@/app/components/ui/PageTransition";
-import Skeleton from "@/app/components/ui/Skeleton";
+import PageTransition from "@/components/ui/PageTransition";
+import Skeleton from "@/components/ui/Skeleton";
 
 import useSocket from "@/hooks/useSocket";
 import { useCompany } from "@/context/CompanyContext";
 
-/**
- * =====================================================
- * 📊 DASHBOARD (REALTIME + UX PRO)
- * =====================================================
- */
+import {
+  getTimeline,
+  markTimelineAsRead,
+} from "@/services/timeline.service";
 
 export default function Dashboard() {
-  const [timeline, setTimeline] = useState([]);
-  const [loading, setLoading] = useState(true);
-
   const { companyId } = useCompany();
 
+  const [timeline, setTimeline] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
   /**
-   * 🔥 Carregar timeline
+   * 📡 Buscar timeline
    */
-  useEffect(() => {
+  const fetchTimeline = useCallback(async () => {
     if (!companyId) return;
 
-    async function fetchTimeline() {
-      try {
-        const res = await fetch("http://localhost:3001/api/timeline", {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-            "x-company-id": companyId,
-          },
-        });
+    setLoading(true);
+    setError(null);
 
-        const data = await res.json();
-        setTimeline(data);
-      } catch (error) {
-        console.error("Erro ao carregar timeline:", error);
-      } finally {
-        setLoading(false);
-      }
+    const { data, error } = await getTimeline(companyId);
+
+    if (error) {
+      console.error("Erro timeline:", error);
+      setError(error);
+      toast.error("Erro ao carregar timeline");
+    } else {
+      setTimeline(data || []);
     }
 
-    fetchTimeline();
+    setLoading(false);
   }, [companyId]);
 
+  useEffect(() => {
+    fetchTimeline();
+  }, [fetchTimeline]);
+
   /**
-   * 🔥 SOCKET TEMPO REAL
+   * ⚡ SOCKET (tempo real)
    */
   useSocket(companyId, (newItem) => {
-    setTimeline((prev) => [newItem, ...prev]);
+    setTimeline((prev) => {
+      // 🔥 evita duplicação
+      if (prev.some((item) => item.id === newItem.id)) {
+        return prev;
+      }
+      return [newItem, ...prev];
+    });
 
-    /**
-     * 🔔 Toast ao vivo
-     */
     toast.success(
       `${newItem.user?.name} ${formatAction(newItem.action)}`
     );
   });
 
   /**
-   * 🔥 Marcar como lido ao abrir
+   * 👁️ Marcar como lido
    */
   useEffect(() => {
     if (!companyId) return;
 
-    fetch("http://localhost:3001/api/timeline/read", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem("token")}`,
-        "x-company-id": companyId,
-      },
-    }).catch(() => {});
+    markTimelineAsRead(companyId);
   }, [companyId]);
 
   /**
-   * 🔄 Loading UI
+   * 🔄 LOADING
    */
   if (loading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-10 w-1/3" />
-        <Skeleton className="h-32 w-full" />
-        <Skeleton className="h-32 w-full" />
+        <Skeleton />
+        <Skeleton />
+        <Skeleton />
       </div>
     );
   }
 
+  /**
+   * ❌ ERRO
+   */
+  if (error) {
+    return (
+      <div className="p-6">
+        <p className="text-red-500">
+          Erro ao carregar dados.
+        </p>
+
+        <button
+          onClick={fetchTimeline}
+          className="mt-2 text-blue-600"
+        >
+          Tentar novamente
+        </button>
+      </div>
+    );
+  }
+
+  /**
+   * 📭 EMPTY STATE
+   */
+  if (!timeline.length) {
+    return (
+      <PageTransition>
+        <div className="p-6 text-gray-500">
+          Nenhuma atividade ainda.
+        </div>
+      </PageTransition>
+    );
+  }
+
+  /**
+   * ✅ UI
+   */
   return (
     <PageTransition>
       <div className="space-y-6">
@@ -121,7 +167,7 @@ export default function Dashboard() {
 }
 
 /**
- * 🔹 Helper de texto
+ * 🧠 Helper
  */
 function formatAction(action) {
   const map = {

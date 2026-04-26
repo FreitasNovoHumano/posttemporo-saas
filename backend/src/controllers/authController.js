@@ -3,32 +3,23 @@ const prisma = require("../lib/prisma");
 
 /**
  * =====================================================
- * 🔐 AUTH CONTROLLER
- * =====================================================
- * Responsável por:
- * - Registro de usuário + empresa (multi-tenant)
- * - Login
- * - Retornar usuário autenticado
+ * 🔐 AUTH CONTROLLER (PRO - SAAS READY)
  * =====================================================
  */
 
 /**
- * 🔹 REGISTER (cria empresa + vínculo via Membership)
+ * 🔹 REGISTER
  */
 async function register(req, res) {
   try {
     const { name, email, password, companyName } = req.body;
 
-    // 🔴 Validação
     if (!email || !password || !companyName) {
       return res.status(400).json({
-        error: "Email, senha e nome da empresa são obrigatórios",
+        error: "Email, senha e empresa obrigatórios",
       });
     }
 
-    /**
-     * 🔒 Verifica se usuário já existe
-     */
     const existingUser = await prisma.user.findUnique({
       where: { email },
     });
@@ -40,31 +31,19 @@ async function register(req, res) {
     }
 
     /**
-     * 🔥 Transação (garante consistência)
+     * 🔥 TRANSACTION
      */
     const result = await prisma.$transaction(async (tx) => {
-      /**
-       * 🏢 Cria empresa (tenant)
-       */
       const company = await tx.company.create({
-        data: {
-          name: companyName,
-        },
+        data: { name: companyName },
       });
 
-      /**
-       * 👤 Cria usuário
-       */
       const user = await authService.register({
         name,
         email,
         password,
       });
 
-      /**
-       * 🔗 Cria vínculo (Membership)
-       * Usuário vira ADMIN da empresa
-       */
       await tx.membership.create({
         data: {
           userId: user.id,
@@ -77,11 +56,19 @@ async function register(req, res) {
     });
 
     /**
-     * 🔐 Login automático após registro
+     * 🔐 LOGIN AUTOMÁTICO
      */
-    const { accessToken, refreshToken } = await authService.login({
-      email,
-      password,
+    const { accessToken, refreshToken } =
+      await authService.login({ email, password });
+
+    /**
+     * 🍪 COOKIE SEGURO
+     */
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: false, // true em produção
+      sameSite: "strict",
+      path: "/api/auth/refresh",
     });
 
     return res.status(201).json({
@@ -94,7 +81,6 @@ async function register(req, res) {
         },
       ],
       accessToken,
-      refreshToken,
     });
 
   } catch (error) {
@@ -115,15 +101,21 @@ async function login(req, res) {
       await authService.login(req.body);
 
     /**
-     * 🔥 Retorna empresas do usuário
+     * 🔥 BUSCAR EMPRESAS (MULTI-TENANT)
      */
     const memberships = await prisma.membership.findMany({
-      where: {
-        userId: user.id,
-      },
-      include: {
-        company: true,
-      },
+      where: { userId: user.id },
+      include: { company: true },
+    });
+
+    /**
+     * 🍪 REFRESH TOKEN SEGURO
+     */
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: false,
+      sameSite: "strict",
+      path: "/api/auth/refresh",
     });
 
     return res.json({
@@ -138,7 +130,6 @@ async function login(req, res) {
         role: m.role,
       })),
       accessToken,
-      refreshToken,
     });
 
   } catch (error) {
@@ -149,17 +140,15 @@ async function login(req, res) {
 }
 
 /**
- * 🔹 GET USER LOGADO (/me)
+ * 🔹 ME
  */
 async function me(req, res) {
   try {
     const user = await prisma.user.findUnique({
-      where: { id: req.user.userId },
+      where: { id: req.user.id }, // 🔥 corrigido
       include: {
         memberships: {
-          include: {
-            company: true,
-          },
+          include: { company: true },
         },
       },
     });
@@ -190,8 +179,17 @@ async function me(req, res) {
   }
 }
 
+/**
+ * 🔹 LOGOUT
+ */
+async function logout(req, res) {
+  res.clearCookie("refreshToken");
+  return res.json({ success: true });
+}
+
 module.exports = {
   register,
   login,
   me,
+  logout,
 };

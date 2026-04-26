@@ -15,33 +15,6 @@ datasource db {
 
 /**
  * =====================================================
- * 🔐 ENUMS
- * =====================================================
- */
-
-enum CompanyRole {
-  ADMIN
-  EDITOR
-  VIEWER
-}
-
-enum PostStatus {
-  DRAFT
-  SCHEDULED
-  PUBLISHED
-  APPROVED
-  REJECTED
-}
-
-enum Permission {
-  CREATE_POST
-  APPROVE_POST
-  DELETE_POST
-  VIEW_DASHBOARD
-}
-
-/**
- * =====================================================
  * 🏢 COMPANY (MULTI-TENANT)
  * =====================================================
  */
@@ -52,9 +25,11 @@ model Company {
 
   memberships Membership[]
   posts       Post[]
-  invites     Invite[] // 🔥 ESSENCIAL
+  invites     Invite[]
 
   createdAt DateTime @default(now())
+
+  @@index([name])
 }
 
 /**
@@ -79,51 +54,102 @@ model User {
   refreshTokens RefreshToken[]
 
   createdAt DateTime @default(now())
+
+  @@index([email])
 }
 
 /**
  * =====================================================
  * 🔗 MEMBERSHIP (CORE MULTI-TENANT)
  * =====================================================
+ * - Um usuário pode ter papéis diferentes por empresa
  */
 
 model Membership {
-  id String @id @default(uuid())
-
+  id        String @id @default(cuid())
   userId    String
   companyId String
-
-  role CompanyRole
-
-  // 🔥 Controle de leitura por empresa
-  lastReadAt DateTime?
+  roleId    String
 
   user    User    @relation(fields: [userId], references: [id])
   company Company @relation(fields: [companyId], references: [id])
+  role    Role    @relation(fields: [roleId], references: [id])
+
+  // 🔔 controle de leitura (timeline/notificações)
+  lastReadAt DateTime?
+
+  // 🧠 auditoria
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, companyId])
+  @@index([userId])
+  @@index([companyId])
 }
 
 /**
  * =====================================================
- * 🔐 PERMISSÕES GRANULARES
+ * 🔐 RBAC (ROLE BASED ACCESS CONTROL)
+ * =====================================================
+ */
+
+model Role {
+  id          String           @id @default(cuid())
+  name        String           @unique
+  permissions RolePermission[]
+  memberships Membership[]
+
+  createdAt DateTime @default(now())
+  invites   Invite[]
+}
+
+/**
+ * 🔐 PERMISSIONS (DINÂMICAS)
+ */
+
+model Permission {
+  id   String @id @default(cuid())
+  name String @unique
+
+  roles           RolePermission[]
+  userPermissions UserPermission[]
+}
+
+/**
+ * 🔗 RELAÇÃO ROLE ↔ PERMISSION
+ */
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id])
+  permission Permission @relation(fields: [permissionId], references: [id])
+
+  @@id([roleId, permissionId])
+}
+
+/**
+ * =====================================================
+ * 🔐 PERMISSÕES POR USUÁRIO (OVERRIDE OPCIONAL)
  * =====================================================
  */
 
 model UserPermission {
-  id         String     @id @default(uuid())
-  userId     String
-  companyId  String
-  permission Permission
+  id           String @id @default(uuid())
+  userId       String
+  companyId    String
+  permissionId String
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id])
 
   @@index([userId, companyId])
 }
 
 /**
  * =====================================================
- * 📝 POST
+ * 📝 POSTS
  * =====================================================
  */
 
@@ -157,6 +183,20 @@ model Post {
 
 /**
  * =====================================================
+ * 📊 STATUS DO POST
+ * =====================================================
+ */
+
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  APPROVED
+  REJECTED
+}
+
+/**
+ * =====================================================
  * 🔔 NOTIFICAÇÕES
  * =====================================================
  */
@@ -170,6 +210,8 @@ model Notification {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 /**
@@ -189,11 +231,13 @@ model Comment {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
+
+  @@index([postId])
 }
 
 /**
  * =====================================================
- * 🧾 AUDIT LOG
+ * 🧾 AUDITORIA
  * =====================================================
  */
 
@@ -210,6 +254,8 @@ model AuditLog {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 /**
@@ -226,25 +272,28 @@ model RefreshToken {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 /**
  * =====================================================
- * ✉️ INVITE
+ * ✉️ INVITES (CONVITE PARA EMPRESA)
  * =====================================================
  */
 
 model Invite {
-  id        String      @id @default(uuid())
+  id        String @id @default(uuid())
   email     String
   companyId String
-  role      CompanyRole
-  token     String      @unique
+  roleId    String
+  token     String @unique
 
   expiresAt DateTime
   createdAt DateTime @default(now())
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  role    Role    @relation(fields: [roleId], references: [id])
 
   @@index([companyId])
 }
