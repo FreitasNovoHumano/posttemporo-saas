@@ -11,6 +11,17 @@ const authMiddleware = require("../middlewares/authMiddleware");
  */
 
 /**
+ * 🧪 DEBUG (remover depois)
+ */
+console.log("🔎 DEBUG AUTH ROUTES:");
+console.log("register:", typeof authController.register);
+console.log("login:", typeof authController.login);
+console.log("me:", typeof authController.me);
+console.log("refresh:", typeof authController.refresh);
+console.log("logout:", typeof authController.logout);
+console.log("middleware:", typeof authMiddleware);
+
+/**
  * 📝 REGISTER
  */
 router.post("/register", authController.register);
@@ -26,6 +37,16 @@ router.post("/login", authController.login);
 router.get("/me", authMiddleware, authController.me);
 
 /**
+ * 🔄 REFRESH TOKEN
+ */
+router.post("/refresh", authController.refresh);
+
+/**
+ * 🚪 LOGOUT
+ */
+router.post("/logout", authController.logout);
+
+/**
  * 💓 HEALTH CHECK
  */
 router.get("/health", (req, res) => {
@@ -34,9 +55,6 @@ router.get("/health", (req, res) => {
     service: "auth",
     timestamp: new Date(),
   });
-
-  router.post("/auth/refresh", refresh);
-  
 });
 
 module.exports = router;

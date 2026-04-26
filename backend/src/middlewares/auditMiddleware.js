@@ -1,22 +1,71 @@
-//const audit = require("../services/auditService");
+const prisma = require("../lib/prisma");
 
-module.exports = function auditMiddleware(action) {
+/**
+ * =====================================================
+ * 🔐 AUTHORIZE (RBAC REAL)
+ * =====================================================
+ */
+function authorize(permission) {
   return async (req, res, next) => {
-    res.on("finish", async () => {
-      if (res.statusCode < 400) {
-        try {
-          await audit.logAction({
-            action,
-            postId: req.params.id,
-            userId: req.user.userId,
-            companyId: req.companyId,
-          });
-        } catch (err) {
-          console.error("Erro audit:", err);
-        }
-      }
-    });
+    try {
+      const userId = req.user.id;
+      const companyId = req.headers["x-company-id"];
 
-    next();
+      if (!companyId) {
+        return res.status(400).json({
+          error: "Empresa não informada",
+        });
+      }
+
+      /**
+       * 🔎 Busca membership + role + permissões
+       */
+      const membership = await prisma.membership.findFirst({
+        where: {
+          userId,
+          companyId,
+        },
+        include: {
+          role: {
+            include: {
+              permissions: {
+                include: {
+                  permission: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!membership) {
+        return res.status(403).json({
+          error: "Sem acesso à empresa",
+        });
+      }
+
+      /**
+       * 🔐 Verifica permissão
+       */
+      const hasPermission = membership.role.permissions.some(
+        (p) => p.permission.name === permission
+      );
+
+      if (!hasPermission) {
+        return res.status(403).json({
+          error: "Sem permissão",
+        });
+      }
+
+      next();
+
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        error: "Erro de autorização",
+      });
+    }
   };
-};
+}
+
+module.exports = authorize;

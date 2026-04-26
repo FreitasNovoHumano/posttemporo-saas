@@ -14,10 +14,10 @@ async function main() {
 
   for (const name of permissions) {
     const perm = await prisma.permission.upsert({
-      where: { name },
-      update: {},
-      create: { name },
-    });
+  where: { name: "VIEW_LEADS" },
+  update: {},
+  create: { name: "VIEW_LEADS" },
+});
 
     createdPermissions[name] = perm;
   }

@@ -1,14 +1,17 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
+import { hasPermission } from "@/utils/permissions";
 
 /**
- * 📊 Timeline Component
+ * 📊 Timeline Component (PRO + RBAC)
  * --------------------------------------------------
- * Exibe atividades recentes do sistema
+ * Exibe atividades recentes com controle de permissão
  */
 export default function Timeline({ items = [] }) {
   const router = useRouter();
+  const { user } = useAuth();
 
   if (!items.length) {
     return (
@@ -20,47 +23,65 @@ export default function Timeline({ items = [] }) {
 
   return (
     <div className="space-y-3">
-      {items.map((item) => (
-        <div
-          key={item.id}
-          onClick={() => handleClick(item, router)}
-          className={`flex items-start gap-3 p-4 border rounded-lg cursor-pointer
-            ${item.isRead ? "bg-white" : "bg-blue-50"}
-          `}
-        >
-          {/* 👤 Avatar */}
-          <div className="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold">
-            {getInitials(item.user?.name)}
-          </div>
+      {items.map((item) => {
+        /**
+         * 🔐 Verifica permissão para acessar post
+         */
+        const canViewPost = hasPermission(user, "VIEW_POST");
 
-          {/* 📄 Conteúdo */}
-          <div className="flex-1">
-            <div className="text-sm">
-              <strong>{item.user?.name || "Usuário"}</strong>{" "}
-              → {formatAction(item.action)}
-            </div>
-
-            {item.post && (
-              <div className="text-xs text-gray-500">
-                {item.post.title}
-              </div>
-            )}
-
-            <div className="text-xs text-gray-400 mt-1">
-              {formatDate(item.createdAt)}
-            </div>
-          </div>
-
-          {/* 🏷️ Badge */}
+        return (
           <div
-            className={`text-xs px-2 py-1 rounded ${getBadge(
-              item.action
-            )}`}
+            key={item.id}
+            onClick={() =>
+              canViewPost && handleClick(item, router)
+            }
+            className={`flex items-start gap-3 p-4 border rounded-lg
+              ${
+                item.isRead ? "bg-white" : "bg-blue-50"
+              }
+              ${
+                canViewPost
+                  ? "cursor-pointer hover:shadow-md"
+                  : "cursor-not-allowed opacity-60"
+              }
+            `}
           >
-            {formatAction(item.action)}
+            {/* 👤 Avatar */}
+            <div className="w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold">
+              {getInitials(item.user?.name)}
+            </div>
+
+            {/* 📄 Conteúdo */}
+            <div className="flex-1">
+              <div className="text-sm">
+                <strong>
+                  {item.user?.name || "Usuário"}
+                </strong>{" "}
+                → {formatAction(item.action)}
+              </div>
+
+              {item.post && (
+                <div className="text-xs text-gray-500">
+                  {item.post.title}
+                </div>
+              )}
+
+              <div className="text-xs text-gray-400 mt-1">
+                {formatDate(item.createdAt)}
+              </div>
+            </div>
+
+            {/* 🏷️ Badge */}
+            <div
+              className={`text-xs px-2 py-1 rounded ${getBadge(
+                item.action
+              )}`}
+            >
+              {formatAction(item.action)}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

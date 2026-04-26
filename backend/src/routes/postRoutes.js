@@ -6,7 +6,7 @@ const postController = require("../controllers/postController");
 const auth = require("../middlewares/authMiddleware");
 const company = require("../middlewares/companyMiddleware");
 
-// 🔐 NOVO RBAC
+// 🔐 RBAC
 const authorize = require("../middlewares/authorize");
 const { PERMISSIONS } = require("../config/permissions");
 

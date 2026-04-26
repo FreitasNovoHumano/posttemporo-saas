@@ -4,6 +4,7 @@
  * =====================================================
  */
 
+const cookieParser = require("cookie-parser");
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
@@ -99,6 +100,8 @@ const notificationRoutes = require("./routes/notificationRoutes");
 const commentRoutes = require("./routes/commentRoutes");
 const timelineRoutes = require("./routes/timelineRoutes"); // 🔥 novo
 const inviteRoutes = require("./routes/inviteRoutes"); // 🔥 novo
+const leadRoutes = require('./routes/leadRoutes');
+const aiRoutes = require("./routes/aiRoutes");
 
 /**
  * 🔥 Prefixo global (recomendado)
@@ -110,6 +113,8 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/comments", commentRoutes);
 app.use("/api/timeline", timelineRoutes);
 app.use("/api/invite", inviteRoutes);
+app.use("/api/leads", leadRoutes);
+app.use("/api/ai", aiRoutes);
 
 /**
  * =====================================================

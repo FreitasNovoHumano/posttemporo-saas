@@ -2,315 +2,255 @@
 
 /**
  * =====================================================
- * 🌐 LANDING PAGE - POSTTEMPERO
+ * 🌐 LANDING PAGE (PRO - INSTAGRAM + FORM FUNCIONAL)
  * =====================================================
- * 🎯 Objetivo:
- * - Permitir teste gratuito (1 post)
- * - Demonstrar valor real
- * - Converter após experiência
  *
- * 🧠 Estratégia:
- * - Usuário testa primeiro
- * - Sistema gera post realista
- * - Após 1 uso → bloqueio + conversão
+ * 🔥 MELHORIAS:
+ * - Preview estilo Instagram
+ * - Formulário funcional (envia lead)
+ * - Feedback visual pro usuário
+ * - Código organizado
+ *
  * =====================================================
  */
 
 import { useState } from "react";
 
-export default function Home() {
-
+export default function HomePage() {
   /**
-   * 🔀 Função utilitária para variar textos
+   * =====================================================
+   * 📦 STATES
+   * =====================================================
    */
-  function randomItem(arr: string[]) {
-    return arr[Math.floor(Math.random() * arr.length)];
-  }
 
-  /**
-   * 📌 FORMULÁRIO (lead)
-   */
+  // 🔥 TESTE
+  const [showTest, setShowTest] = useState(false);
+  const [type, setType] = useState("");
+  const [post, setPost] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  // 🔥 FORM
   const [form, setForm] = useState({
-    nome: "",
-    empresa: "",
+    name: "",
+    company: "",
     whatsapp: "",
     email: "",
   });
 
-  /**
-   * 📌 SIMULADOR
-   */
-  const [segmento, setSegmento] = useState("");
-  const [postGerado, setPostGerado] = useState<any>(null);
-  const [jaGerou, setJaGerou] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
+  const [formSuccess, setFormSuccess] = useState(false);
 
   /**
-   * ✏️ INPUT HANDLER
+   * =====================================================
+   * 🧪 GERAR POST
+   * =====================================================
    */
-  const handleChange = (e: any) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-  };
+  async function generatePost() {
+    if (!type) return alert("Escolha um tipo");
 
-  /**
-   * 🤖 GERAR POST (COM VARIAÇÃO)
-   */
-  const gerarPost = () => {
-    if (!segmento) return;
+    setLoading(true);
+    setPost(null);
 
-    if (jaGerou) {
-      alert("Você já utilizou seu teste gratuito.");
-      return;
-    }
+    await new Promise((r) => setTimeout(r, 1200));
 
-    const empresa = form.empresa || "Seu restaurante";
-
-    const posts: any = {
-
+    const data: any = {
       hamburgueria: {
-        texto: `🍔 ${empresa}
-
-${randomItem([
-  "Hoje é dia de hambúrguer de verdade.",
-  "Bateu aquela fome? A gente resolve.",
-  "Nada melhor que um hambúrguer caprichado hoje.",
-])}
-
-${randomItem([
-  "Carne suculenta, pão macio e muito sabor 🤤",
-  "Preparado na hora, do jeito que você gosta.",
-  "Sabor que vicia e faz voltar.",
-])}
-
-${randomItem([
-  "🔥 Peça agora!",
-  "📲 Garanta o seu!",
-  "🚀 Aproveite agora!",
-])}`,
-        imagem: "https://images.unsplash.com/photo-1550547660-d9450f859349?w=800",
+        image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd",
+        title: "🍔 Hambúrguer artesanal",
+        content: "Suculento, queijo derretendo e molho especial 🤤",
+        cta: "Peça agora!",
       },
-
       pizzaria: {
-        texto: `🍕 ${empresa}
-
-${randomItem([
-  "Pizza quentinha saindo agora!",
-  "Hoje é dia de pizza 🍕",
-  "Chegou a hora da melhor pizza do dia.",
-])}
-
-${randomItem([
-  "Direto do forno pra você 🔥",
-  "Massa perfeita e recheio caprichado.",
-  "Sabor que conquista.",
-])}
-
-${randomItem([
-  "📲 Faça seu pedido agora!",
-  "🔥 Peça já!",
-  "🚀 Não fica de fora!",
-])}`,
-        imagem: "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=800",
+        image: "https://images.unsplash.com/photo-1600891964599-f61ba0e24092",
+        title: "🍕 Hoje é dia de pizza",
+        content: "Massa perfeita e recheio caprichado 😍",
+        cta: "Peça já!",
       },
-
-      japones: {
-        texto: `🍣 ${empresa}
-
-${randomItem([
-  "Sushi fresco preparado na hora.",
-  "Experiência japonesa de verdade.",
-  "Qualidade que dá pra ver.",
-])}
-
-${randomItem([
-  "Sabor leve e irresistível 😍",
-  "Combos incríveis te esperando.",
-  "Peças selecionadas com cuidado.",
-])}
-
-${randomItem([
-  "📲 Peça agora!",
-  "🔥 Garanta o seu!",
-  "🚀 Faça seu pedido!",
-])}`,
-        imagem: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800",
-      },
-
-      chines: {
-        texto: `🥡 ${empresa}
-
-${randomItem([
-  "Explosão de sabores orientais!",
-  "Hoje tem comida chinesa de verdade.",
-  "Sabor que conquista.",
-])}
-
-${randomItem([
-  "Yakissoba, rolinho primavera e muito mais 😋",
-  "Pratos deliciosos esperando por você.",
-  "Combinação perfeita de sabores.",
-])}
-
-${randomItem([
-  "📲 Peça agora!",
-  "🔥 Aproveite hoje!",
-  "🚀 Faça seu pedido!",
-])}`,
-        imagem: "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=800",
-      },
-
       churrasco: {
-        texto: `🔥 ${empresa}
-
-${randomItem([
-  "Churrasco no ponto perfeito.",
-  "Hoje é dia de carne boa.",
-  "Sabor de verdade.",
-])}
-
-${randomItem([
-  "Suculento e irresistível 🥩",
-  "Preparado no capricho.",
-  "Pra quem gosta de comer bem.",
-])}
-
-${randomItem([
-  "📍 Vem garantir o seu!",
-  "🔥 Aproveite agora!",
-  "🚀 Não perde!",
-])}`,
-        imagem: "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800",
+        image: "https://images.unsplash.com/photo-1558030006-450675393462",
+        title: "🔥 Churrasco na brasa",
+        content: "Carne suculenta direto da grelha!",
+        cta: "Garanta o seu!",
       },
-
-      outro: {
-        texto: `📢 ${empresa}
-
-${randomItem([
-  "Hoje tem coisa boa te esperando!",
-  "Mais um dia de sabor incrível.",
-  "Preparado com carinho pra você.",
-])}
-
-${randomItem([
-  "Qualidade e sabor em cada detalhe 😍",
-  "Você merece o melhor.",
-  "Experimente hoje!",
-])}
-
-${randomItem([
-  "📲 Peça agora!",
-  "🔥 Aproveite!",
-  "🚀 Garanta já!",
-])}`,
-        imagem: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=800",
+      marmitex: {
+        image: "https://images.unsplash.com/photo-1604908176997-431221c7e1b2",
+        title: "🍱 Marmitex quentinha",
+        content: "Comida caseira com sabor de verdade ❤️",
+        cta: "Peça agora!",
+      },
+      japonesa: {
+        image: "https://images.unsplash.com/photo-1579584425555-c3ce17fd4351",
+        title: "🍣 Sushi fresco",
+        content: "Peças selecionadas todos os dias",
+        cta: "Faça seu pedido!",
       },
     };
 
-    setPostGerado(posts[segmento]);
-    setJaGerou(true);
-  };
+    setPost(data[type]);
+    setLoading(false);
+  }
 
+  /**
+   * =====================================================
+   * ✏️ FORM HANDLERS
+   * =====================================================
+   */
+  function handleChange(e: any) {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  }
+
+  async function handleSubmit(e: any) {
+    e.preventDefault();
+
+    setFormLoading(true);
+    setFormSuccess(false);
+
+    try {
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/leads`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(form),
+        }
+      );
+
+      if (!res.ok) throw new Error();
+
+      setFormSuccess(true);
+
+      // limpa form
+      setForm({
+        name: "",
+        company: "",
+        whatsapp: "",
+        email: "",
+      });
+
+    } catch {
+      alert("Erro ao enviar dados");
+    } finally {
+      setFormLoading(false);
+    }
+  }
+
+  /**
+   * =====================================================
+   * 🌐 UI
+   * =====================================================
+   */
   return (
-    <main className="bg-white text-gray-900">
+    <main className="bg-gray-100 min-h-screen flex flex-col items-center px-4 py-10 gap-10">
 
-      {/* HERO */}
-      <section className="min-h-screen flex flex-col justify-center items-center text-center px-6">
+      {/* HEADLINE */}
+      <h1 className="text-3xl font-bold text-center max-w-xl">
+        Seu restaurante não precisa de mais seguidores.
+        <br /> Precisa de mais clientes.
+      </h1>
 
-        <h1 className="text-4xl md:text-6xl font-bold max-w-3xl">
-          Seu restaurante não precisa de mais seguidores.
-          <span className="text-green-600"> Precisa de mais clientes.</span>
-        </h1>
+      {/* PROMESSA */}
+      <p className="text-gray-600 text-center max-w-md">
+        Posts automáticos, profissionais e que vendem todos os dias.
+      </p>
 
-        <p className="mt-4 text-gray-600">
-          Teste grátis: veja como seus posts podem ficar 👇
-        </p>
+      {/* FRASES */}
+      <div className="text-center space-y-1">
+        <p>✔️ Postar todo dia nunca foi tão fácil</p>
+        <p>✔️ Menos dúvida, mais movimento</p>
+        <p>✔️ Seu feed trabalhando pra você</p>
+      </div>
 
-      </section>
+      {/* CTA */}
+      <button
+        onClick={() => {
+          setShowTest(true);
+          setPost(null);
+        }}
+        className="bg-green-600 text-white px-6 py-3 rounded font-semibold"
+      >
+        Testar grátis agora 🚀
+      </button>
 
-      {/* SIMULADOR */}
-      <section className="py-20 bg-gray-50 text-center px-6">
+      {/* TESTE */}
+      {showTest && (
+        <div className="bg-white p-6 rounded-xl shadow max-w-md w-full text-center space-y-4">
 
-        <h2 className="text-3xl font-bold mb-6">
-          Gere seu primeiro post automático
+          <h2 className="font-bold">Teste grátis</h2>
+
+          <select
+            value={type}
+            onChange={(e) => setType(e.target.value)}
+            className="w-full border p-2 rounded"
+          >
+            <option value="">Escolha seu tipo</option>
+            <option value="hamburgueria">Hamburgueria</option>
+            <option value="pizzaria">Pizzaria</option>
+            <option value="churrasco">Churrasco</option>
+            <option value="marmitex">Marmitex</option>
+            <option value="japonesa">Japonesa</option>
+          </select>
+
+          <button
+            onClick={generatePost}
+            className="bg-blue-600 text-white px-4 py-2 rounded"
+          >
+            Gerar meu post grátis
+          </button>
+
+          {loading && <p>Gerando post...</p>}
+
+          {post && (
+            <div className="bg-white rounded-xl shadow overflow-hidden">
+              <img src={post.image} className="w-full h-60 object-cover" />
+              <div className="p-4 text-left">
+                <p className="font-bold">{post.title}</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  {post.content}
+                </p>
+                <p className="mt-3 text-green-600 font-semibold">
+                  👉 {post.cta}
+                </p>
+              </div>
+            </div>
+          )}
+
+        </div>
+      )}
+
+      {/* FORM */}
+      <div className="bg-green-50 p-6 rounded-xl shadow max-w-md w-full">
+        <h2 className="text-center font-bold mb-4">
+          Receber proposta personalizada
         </h2>
 
-        <select
-          onChange={(e) => setSegmento(e.target.value)}
-          className="border p-3 rounded mb-4"
-        >
-          <option value="">Escolha seu tipo de restaurante</option>
-          <option value="hamburgueria">Hamburgueria</option>
-          <option value="pizzaria">Pizzaria</option>
-          <option value="churrasco">Churrasco</option>
-          <option value="chines">Comida Chinesa</option>
-          <option value="japones">Comida Japonesa</option>
-          <option value="outro">Outro</option>
-        </select>
+        <form onSubmit={handleSubmit} className="space-y-3">
 
-        <button
-          onClick={gerarPost}
-          className="bg-black text-white px-6 py-2 rounded"
-        >
-          Gerar meu post grátis
-        </button>
+          <input name="name" value={form.name} onChange={handleChange} placeholder="Nome completo" className="w-full p-2 border rounded" />
+          <input name="company" value={form.company} onChange={handleChange} placeholder="Empresa" className="w-full p-2 border rounded" />
+          <input name="whatsapp" value={form.whatsapp} onChange={handleChange} placeholder="WhatsApp" className="w-full p-2 border rounded" />
+          <input name="email" value={form.email} onChange={handleChange} placeholder="Email" className="w-full p-2 border rounded" />
 
-        {/* POST */}
-        {postGerado && (
-          <div className="mt-10 max-w-sm mx-auto bg-white rounded-xl shadow-lg overflow-hidden border">
+          <button className="w-full bg-green-600 text-white p-3 rounded">
+            {formLoading ? "Enviando..." : "Quero uma proposta"}
+          </button>
 
-            <div className="flex items-center gap-3 p-3">
-              <div className="w-8 h-8 bg-gray-300 rounded-full" />
-              <span className="font-semibold">
-                {form.empresa || "seu_restaurante"}
-              </span>
-            </div>
-
-            <img
-              src={postGerado.imagem}
-              alt="post"
-              className="w-full h-64 object-cover"
-            />
-
-            <div className="flex gap-4 px-4 py-2 text-xl">
-              ❤️ 💬 📤
-            </div>
-
-            <div className="px-4 pb-4 text-sm whitespace-pre-line">
-              <span className="font-semibold">
-                {form.empresa || "seu_restaurante"}
-              </span>{" "}
-              {postGerado.texto}
-            </div>
-
-          </div>
-        )}
-
-        {/* CONVERSÃO */}
-        {jaGerou && (
-          <div className="mt-8 max-w-md mx-auto bg-green-50 p-6 rounded-xl border">
-
-            <h3 className="text-xl font-bold mb-2">
-              Esse foi só um exemplo 😉
-            </h3>
-
-            <p className="text-gray-600 mb-4">
-              Imagine isso todos os dias no seu Instagram.
+          {formSuccess && (
+            <p className="text-green-600 text-sm text-center">
+              ✅ Recebemos seus dados! Vamos entrar em contato.
             </p>
+          )}
 
-            <form className="grid gap-3">
-              <input name="nome" placeholder="Seu nome" onChange={handleChange} className="border p-3 rounded" />
-              <input name="empresa" placeholder="Empresa" onChange={handleChange} className="border p-3 rounded" />
-              <input name="whatsapp" placeholder="WhatsApp" onChange={handleChange} className="border p-3 rounded" />
-              <input name="email" placeholder="Email" onChange={handleChange} className="border p-3 rounded" />
+        </form>
+      </div>
 
-              <button className="bg-green-600 text-white py-3 rounded-xl">
-                Quero posts assim todos os dias
-              </button>
-            </form>
-
-          </div>
-        )}
-
-      </section>
+      {/* LOGIN */}
+      <div className="text-center">
+        <a href="/login" className="text-blue-600">
+          Já sou cliente →
+        </a>
+      </div>
 
     </main>
   );
