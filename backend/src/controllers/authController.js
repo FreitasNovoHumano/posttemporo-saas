@@ -1,5 +1,6 @@
 const authService = require("../services/authService");
 const prisma = require("../lib/prisma");
+const jwt = require("jsonwebtoken");
 
 /**
  * =====================================================
@@ -9,11 +10,22 @@ const prisma = require("../lib/prisma");
  * 🎯 RESPONSABILIDADES:
  * - Registro de usuário + empresa
  * - Login com RBAC (multi-tenant)
- * - Sessão (refresh token)
+ * - Sessão (refresh token HTTP-only)
+ * - Restore de sessão (/refresh)
  * - Retorno de empresas do usuário
  *
  * =====================================================
  */
+
+/**
+ * 🍪 Config padrão de cookie
+ */
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: false, // 🔥 true em produção (HTTPS)
+  sameSite: "strict",
+  path: "/api/auth/refresh",
+};
 
 /**
  * 🔹 REGISTER
@@ -42,21 +54,16 @@ async function register(req, res) {
      * 🔥 TRANSACTION
      */
     const result = await prisma.$transaction(async (tx) => {
-      // 🏢 empresa
       const company = await tx.company.create({
         data: { name: companyName },
       });
 
-      // 👤 usuário
       const user = await authService.register({
         name,
         email,
         password,
       });
 
-      /**
-       * 🔐 buscar role ADMIN (RBAC)
-       */
       const adminRole = await tx.role.findUnique({
         where: { name: "ADMIN" },
       });
@@ -65,12 +72,11 @@ async function register(req, res) {
         throw new Error("Role ADMIN não encontrada");
       }
 
-      // 🔗 membership
       await tx.membership.create({
         data: {
           userId: user.id,
           companyId: company.id,
-          roleId: adminRole.id, // 🔥 corrigido
+          roleId: adminRole.id,
         },
       });
 
@@ -84,18 +90,10 @@ async function register(req, res) {
       await authService.login({
         email,
         password,
-        companyId: result.company.id, // 🔥 obrigatório agora
+        companyId: result.company.id,
       });
 
-    /**
-     * 🍪 COOKIE SEGURO
-     */
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: false, // 🔥 true em produção
-      sameSite: "strict",
-      path: "/api/auth/refresh",
-    });
+    res.cookie("refreshToken", refreshToken, COOKIE_OPTIONS);
 
     return res.status(201).json({
       user: result.user,
@@ -113,7 +111,7 @@ async function register(req, res) {
     console.error("ERRO REGISTER:", error);
 
     return res.status(400).json({
-      error: error.message,
+      error: error.message || "Erro ao registrar",
     });
   }
 }
@@ -138,9 +136,6 @@ async function login(req, res) {
         companyId,
       });
 
-    /**
-     * 🔥 BUSCAR EMPRESAS (MULTI-TENANT)
-     */
     const memberships = await prisma.membership.findMany({
       where: { userId: user.id },
       include: {
@@ -149,15 +144,7 @@ async function login(req, res) {
       },
     });
 
-    /**
-     * 🍪 REFRESH TOKEN
-     */
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      secure: false,
-      sameSite: "strict",
-      path: "/api/auth/refresh",
-    });
+    res.cookie("refreshToken", refreshToken, COOKIE_OPTIONS);
 
     return res.json({
       user: {
@@ -168,14 +155,49 @@ async function login(req, res) {
       companies: memberships.map((m) => ({
         id: m.company.id,
         name: m.company.name,
-        role: m.role.name, // 🔥 corrigido
+        role: m.role.name,
       })),
       accessToken,
     });
 
   } catch (error) {
     return res.status(400).json({
-      error: error.message,
+      error: error.message || "Erro no login",
+    });
+  }
+}
+
+/**
+ * 🔹 REFRESH (ESSENCIAL PARA PERSISTÊNCIA)
+ */
+async function refresh(req, res) {
+  const token = req.cookies.refreshToken;
+
+  if (!token) {
+    return res.status(401).json({
+      error: "NO_REFRESH_TOKEN",
+    });
+  }
+
+  try {
+    const decoded = jwt.verify(
+      token,
+      process.env.REFRESH_SECRET
+    );
+
+    const newAccessToken = jwt.sign(
+      { id: decoded.id },
+      process.env.ACCESS_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    return res.json({
+      accessToken: newAccessToken,
+    });
+
+  } catch (error) {
+    return res.status(401).json({
+      error: "INVALID_REFRESH_TOKEN",
     });
   }
 }
@@ -237,6 +259,7 @@ async function logout(req, res) {
 module.exports = {
   register,
   login,
+  refresh, // 🔥 NOVO
   me,
   logout,
 };

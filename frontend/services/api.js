@@ -136,7 +136,7 @@ export async function apiFetch(url, options = {}) {
   /**
    * 🔐 TOKEN EXPIRADO → TENTA REFRESH
    */
-  if (res.status === 401) {
+  if (res.status === 401 && !options._retry) {
     const refreshed = await refreshToken();
 
     if (!refreshed) {
@@ -146,7 +146,8 @@ export async function apiFetch(url, options = {}) {
     // 🔁 retry
     try {
       res = await fetchWithTimeout(`${API_URL}${url}`, {
-        ...options,
+  ...options,
+  _retry: true,
         headers: {
           ...getAuthHeaders(options.body instanceof FormData),
           ...(options.headers || {}),
@@ -275,4 +276,25 @@ export function rejectPost(id, comment) {
     method: "PUT",
     body: JSON.stringify({ comment }),
   });
+}
+
+/**
+ * =====================================================
+ * 🔄 SESSION RESTORE (F5 FIX)
+ * =====================================================
+ *
+ * - Usa refresh token (cookie)
+ * - Recupera access token automaticamente
+ * - Pode ser chamado no AuthContext
+ *
+ * =====================================================
+ */
+export async function restoreSession() {
+  const refreshed = await refreshToken();
+
+  if (!refreshed) {
+    return { data: null, error: "UNAUTHORIZED" };
+  }
+
+  return getMe();
 }

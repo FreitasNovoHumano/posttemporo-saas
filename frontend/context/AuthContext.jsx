@@ -5,6 +5,7 @@ import {
   loginUser,
   logoutUser,
   getMe,
+  restoreSession,
 } from "@/services/api";
 
 const AuthContext = createContext(null);
@@ -13,13 +14,6 @@ const AuthContext = createContext(null);
  * =====================================================
  * 🔐 AUTH CONTEXT (PRO - AUTO RESTORE + CLEAN ARCH)
  * =====================================================
- *
- * 🎯 RESPONSABILIDADES:
- * - Login / Logout
- * - Manter usuário em memória
- * - Restaurar sessão após F5
- *
- * =====================================================
  */
 
 export function AuthProvider({ children }) {
@@ -27,11 +21,11 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   /**
-   * 🔄 RESTORE SESSION (ao carregar app)
+   * 🔄 RESTORE SESSION (F5 FIX REAL)
    */
   useEffect(() => {
-    async function restoreSession() {
-      const { data, error } = await getMe();
+    async function init() {
+      const { data, error } = await restoreSession(); // 🔥 CORRETO
 
       if (!error && data) {
         setUser(data);
@@ -40,7 +34,7 @@ export function AuthProvider({ children }) {
       setLoading(false);
     }
 
-    restoreSession();
+    init();
   }, []);
 
   /**
@@ -53,7 +47,6 @@ export function AuthProvider({ children }) {
       throw new Error(error);
     }
 
-    // 🔥 pega usuário após login
     const me = await getMe();
 
     if (me.data) {
@@ -75,7 +68,7 @@ export function AuthProvider({ children }) {
         user,
         login,
         logout,
-        loading, // 🔥 importante pro UI
+        loading,
       }}
     >
       {children}

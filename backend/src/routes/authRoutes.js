@@ -34,6 +34,9 @@ router.get("/health", (req, res) => {
     service: "auth",
     timestamp: new Date(),
   });
+
+  router.post("/auth/refresh", refresh);
+  
 });
 
 module.exports = router;
