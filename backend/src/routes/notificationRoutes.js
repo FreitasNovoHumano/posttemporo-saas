@@ -21,6 +21,13 @@ const prisma = require("../lib/prisma");
 // 🔐 Middleware de autenticação
 const auth = require("../middlewares/authMiddleware");
 
+const { createLead } = require("../controllers/leadController");
+
+/**
+ * 📌 POST /leads
+ */
+router.post("/leads", createLead);
+
 /**
  * =====================================================
  * 🔔 LISTAR NOTIFICAÇÕES

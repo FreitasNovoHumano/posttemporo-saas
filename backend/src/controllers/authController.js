@@ -1,106 +1,183 @@
+/**
+ * =====================================================
+ * 🔐 AUTH CONTROLLER (PRO - SAAS READY)
+ * =====================================================
+ *
+ * 🎯 RESPONSABILIDADES:
+ * - Autenticação real com banco
+ * - Geração de tokens
+ * - Multi-tenant context
+ *
+ * =====================================================
+ */
+
 const jwt = require("jsonwebtoken");
-const prisma = require("../lib/prisma"); // ajuste o caminho se necessário
+const bcrypt = require("bcryptjs");
+const prisma = require("../lib/prisma");
+
+// 🔐 PADRÃO GLOBAL
+const ACCESS_SECRET = process.env.ACCESS_SECRET;
+const REFRESH_SECRET = process.env.REFRESH_SECRET;
 
 /**
  * 📝 REGISTER
  */
 async function register(req, res) {
-  return res.json({ message: "Register funcionando" });
+  try {
+    const { email, password, name } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        error: "Email e senha obrigatórios",
+      });
+    }
+
+    const hash = await bcrypt.hash(password, 10);
+
+    const user = await prisma.user.create({
+      data: {
+        email,
+        password: hash,
+        name,
+      },
+    });
+
+    return res.status(201).json({
+      message: "Usuário criado",
+      user,
+    });
+
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      error: "Erro ao registrar",
+    });
+  }
 }
 
 /**
  * 🔐 LOGIN
  */
 async function login(req, res) {
-  return res.json({ message: "Login funcionando" });
-}
-
-/**
- * 👤 USUÁRIO LOGADO
- */
-async function me(req, res) {
-  return res.json({ user: req.user || "Usuário autenticado" });
-}
-
-/**
- * 🔄 REFRESH (ESSENCIAL PARA PERSISTÊNCIA)
- */
-async function refresh(req, res) {
-  const token = req.cookies.refreshToken;
-
-  if (!token) {
-    return res.status(401).json({
-      error: "NO_REFRESH_TOKEN",
-    });
-  }
-
   try {
-    const decoded = jwt.verify(
-      token,
-      process.env.REFRESH_SECRET
-    );
+    const { email, password } = req.body;
 
-    const membership = await prisma.membership.findFirst({
-      where: {
-        userId: decoded.id,
-      },
+    const user = await prisma.user.findUnique({
+      where: { email },
       include: {
-        role: {
+        memberships: {
           include: {
-            permissions: {
-              include: {
-                permission: true,
-              },
-            },
+            role: true,
           },
         },
       },
     });
 
-    if (!membership) {
+    if (!user) {
       return res.status(401).json({
-        error: "INVALID_SESSION",
+        error: "Usuário não encontrado",
       });
     }
+
+    const valid = await bcrypt.compare(password, user.password);
+
+    if (!valid) {
+      return res.status(401).json({
+        error: "Senha inválida",
+      });
+    }
+
+    // 🔥 pega primeira empresa (MVP)
+    const membership = user.memberships[0];
+
+    const payload = {
+      id: user.id,
+      companyId: membership?.companyId,
+      role: membership?.role?.name,
+    };
+
+    const accessToken = jwt.sign(payload, ACCESS_SECRET, {
+      expiresIn: "15m",
+    });
+
+    const refreshToken = jwt.sign(payload, REFRESH_SECRET, {
+      expiresIn: "7d",
+    });
+
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      sameSite: "strict",
+      secure: false, // true em produção
+    });
+
+    return res.json({ accessToken });
+
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({
+      error: "Erro no login",
+    });
+  }
+}
+
+/**
+ * 🔄 REFRESH
+ */
+async function refresh(req, res) {
+  try {
+    const token = req.cookies.refreshToken;
+
+    if (!token) {
+      return res.status(401).json({
+        error: "NO_REFRESH_TOKEN",
+      });
+    }
+
+    const decoded = jwt.verify(token, REFRESH_SECRET);
 
     const newAccessToken = jwt.sign(
       {
         id: decoded.id,
-        companyId: membership.companyId,
-        role: membership.role.name,
-        permissions: membership.role.permissions.map(
-          (p) => p.permission.name
-        ),
+        companyId: decoded.companyId,
+        role: decoded.role,
       },
-      process.env.ACCESS_SECRET,
+      ACCESS_SECRET,
       { expiresIn: "15m" }
     );
 
-    return res.json({
-      accessToken: newAccessToken,
-    });
+    return res.json({ accessToken: newAccessToken });
 
-  } catch (error) {
+  } catch {
     return res.status(401).json({
-      error: "INVALID_REFRESH_TOKEN",
+      error: "INVALID_REFRESH",
     });
   }
+}
+
+/**
+ * 👤 ME
+ */
+async function me(req, res) {
+  return res.json({
+    user: req.user,
+  });
 }
 
 /**
  * 🚪 LOGOUT
  */
 async function logout(req, res) {
-  return res.json({ message: "Logout funcionando" });
+  res.clearCookie("refreshToken");
+
+  return res.json({
+    message: "Logout realizado",
+  });
 }
 
-/**
- * 📦 EXPORTAÇÃO CORRETA (ESSENCIAL)
- */
 module.exports = {
   register,
   login,
-  me,
   refresh,
+  me,
   logout,
 };

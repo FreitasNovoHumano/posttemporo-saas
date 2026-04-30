@@ -18,7 +18,6 @@ datasource db {
  * 🏢 COMPANY (MULTI-TENANT)
  * =====================================================
  */
-
 model Company {
   id   String @id @default(uuid())
   name String
@@ -37,7 +36,6 @@ model Company {
  * 👤 USER
  * =====================================================
  */
-
 model User {
   id       String  @id @default(uuid())
   email    String  @unique
@@ -60,11 +58,9 @@ model User {
 
 /**
  * =====================================================
- * 🔗 MEMBERSHIP (CORE MULTI-TENANT)
+ * 🔗 MEMBERSHIP
  * =====================================================
- * - Um usuário pode ter papéis diferentes por empresa
  */
-
 model Membership {
   id        String @id @default(cuid())
   userId    String
@@ -75,37 +71,29 @@ model Membership {
   company Company @relation(fields: [companyId], references: [id])
   role    Role    @relation(fields: [roleId], references: [id])
 
-  // 🔔 controle de leitura (timeline/notificações)
   lastReadAt DateTime?
 
-  // 🧠 auditoria
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([userId, companyId])
-  @@index([userId])
-  @@index([companyId])
 }
 
 /**
  * =====================================================
- * 🔐 RBAC (ROLE BASED ACCESS CONTROL)
+ * 🔐 RBAC
  * =====================================================
  */
-
 model Role {
-  id          String           @id @default(cuid())
-  name        String           @unique
+  id   String @id @default(cuid())
+  name String @unique
+
   permissions RolePermission[]
   memberships Membership[]
+  invites     Invite[]
 
   createdAt DateTime @default(now())
-  invites   Invite[]
 }
-
-/**
- * 🔐 PERMISSIONS (DINÂMICAS)
- */
 
 model Permission {
   id   String @id @default(cuid())
@@ -114,10 +102,6 @@ model Permission {
   roles           RolePermission[]
   userPermissions UserPermission[]
 }
-
-/**
- * 🔗 RELAÇÃO ROLE ↔ PERMISSION
- */
 
 model RolePermission {
   roleId       String
@@ -129,22 +113,14 @@ model RolePermission {
   @@id([roleId, permissionId])
 }
 
-/**
- * =====================================================
- * 🔐 PERMISSÕES POR USUÁRIO (OVERRIDE OPCIONAL)
- * =====================================================
- */
-
 model UserPermission {
   id           String @id @default(uuid())
   userId       String
   companyId    String
   permissionId String
 
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id])
   permission Permission @relation(fields: [permissionId], references: [id])
-
-  @@index([userId, companyId])
 }
 
 /**
@@ -152,7 +128,6 @@ model UserPermission {
  * 📝 POSTS
  * =====================================================
  */
-
 model Post {
   id       Int     @id @default(autoincrement())
   title    String
@@ -162,7 +137,7 @@ model Post {
   status PostStatus @default(DRAFT)
 
   authorId String
-  author   User   @relation(fields: [authorId], references: [id])
+  author   User @relation(fields: [authorId], references: [id])
 
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -177,15 +152,7 @@ model Post {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  @@index([companyId])
 }
-
-/**
- * =====================================================
- * 📊 STATUS DO POST
- * =====================================================
- */
 
 enum PostStatus {
   DRAFT
@@ -200,7 +167,6 @@ enum PostStatus {
  * 🔔 NOTIFICAÇÕES
  * =====================================================
  */
-
 model Notification {
   id      String  @id @default(uuid())
   userId  String
@@ -210,16 +176,13 @@ model Notification {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-
-  @@index([userId])
 }
 
 /**
  * =====================================================
- * 💬 COMENTÁRIOS
+ * 💬 COMMENTS
  * =====================================================
  */
-
 model Comment {
   id      Int    @id @default(autoincrement())
   content String
@@ -231,16 +194,13 @@ model Comment {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-
-  @@index([postId])
 }
 
 /**
  * =====================================================
- * 🧾 AUDITORIA
+ * 🧾 AUDIT LOG
  * =====================================================
  */
-
 model AuditLog {
   id     Int    @id @default(autoincrement())
   action String
@@ -254,8 +214,6 @@ model AuditLog {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
-
-  @@index([userId])
 }
 
 /**
@@ -263,7 +221,6 @@ model AuditLog {
  * 🔐 REFRESH TOKEN
  * =====================================================
  */
-
 model RefreshToken {
   id        String   @id @default(uuid())
   userId    String
@@ -272,16 +229,13 @@ model RefreshToken {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
 }
 
 /**
  * =====================================================
- * ✉️ INVITES (CONVITE PARA EMPRESA)
+ * ✉️ INVITES
  * =====================================================
  */
-
 model Invite {
   id        String @id @default(uuid())
   email     String
@@ -294,15 +248,27 @@ model Invite {
 
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   role    Role    @relation(fields: [roleId], references: [id])
-
-  @@index([companyId])
 }
 
+/**
+ * =====================================================
+ * 📥 LEADS (ATUALIZADO)
+ * =====================================================
+ *
+ * 🔥 NOVO:
+ * - document (CPF/CNPJ)
+ *
+ * =====================================================
+ */
 model Lead {
   id        String   @id @default(cuid())
   name      String
   company   String?
+  document  String?   // 🔥 NOVO CAMPO
   whatsapp  String
   email     String?
   createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([whatsapp])
 }

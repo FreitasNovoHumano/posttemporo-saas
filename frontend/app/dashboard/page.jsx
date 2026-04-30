@@ -2,19 +2,26 @@
 
 /**
  * =====================================================
- * 📊 DASHBOARD (PRO - SAAS READY)
+ * 📊 DASHBOARD (PRO - SAAS READY + AUTH PROTECTION)
  * =====================================================
  *
  * 🎯 RESPONSABILIDADES:
+ * - Proteger rota (somente usuário logado)
  * - Exibir timeline
  * - Integrar realtime (socket)
  * - Exibir notificações
  * - Gerenciar estados (loading / error / empty)
  *
+ * 🔐 AUTH:
+ * - Usa NextAuth (useSession)
+ * - Redireciona se não autenticado
+ *
  * =====================================================
  */
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import toast from "react-hot-toast";
 
 import Notifications from "@/components/notifications/Notifications";
@@ -32,11 +39,47 @@ import {
 } from "@/services/timeline.service";
 
 export default function Dashboard() {
+  /**
+   * 🔐 AUTH (NextAuth)
+   */
+  const { data: session, status } = useSession();
+  const router = useRouter();
+
+  /**
+   * 🏢 Empresa ativa
+   */
   const { companyId } = useCompany();
 
+  /**
+   * 📦 STATES
+   */
   const [timeline, setTimeline] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  /**
+   * 🔐 PROTEÇÃO DE ROTA
+   */
+  useEffect(() => {
+    // Aguarda sessão carregar
+    if (status === "loading") return;
+
+    // Se não estiver logado → volta pro login
+    if (!session) {
+      router.replace("/login");
+    }
+  }, [status, session, router]);
+
+  /**
+   * ⏳ Evita render enquanto valida sessão
+   */
+  if (status === "loading" || !session) {
+    return (
+      <p className="text-center mt-10">
+        Carregando sessão...
+      </p>
+    );
+  }
 
   /**
    * 📡 Buscar timeline
@@ -69,7 +112,6 @@ export default function Dashboard() {
    */
   useSocket(companyId, (newItem) => {
     setTimeline((prev) => {
-      // 🔥 evita duplicação
       if (prev.some((item) => item.id === newItem.id)) {
         return prev;
       }
@@ -86,12 +128,11 @@ export default function Dashboard() {
    */
   useEffect(() => {
     if (!companyId) return;
-
     markTimelineAsRead(companyId);
   }, [companyId]);
 
   /**
-   * 🔄 LOADING
+   * 🔄 LOADING (dados)
    */
   if (loading) {
     return (
@@ -142,11 +183,15 @@ export default function Dashboard() {
   return (
     <PageTransition>
       <div className="space-y-6">
+
         {/* 🔹 Header */}
         <div>
-          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <h1 className="text-2xl font-bold">
+            Dashboard
+          </h1>
+
           <p className="text-sm text-gray-500">
-            Acompanhe as atividades da sua equipe
+            Bem-vindo, {session.user?.name}
           </p>
         </div>
 
@@ -161,6 +206,7 @@ export default function Dashboard() {
 
           <Timeline items={timeline} />
         </div>
+
       </div>
     </PageTransition>
   );

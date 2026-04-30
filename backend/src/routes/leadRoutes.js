@@ -15,33 +15,71 @@ const { PERMISSIONS } = require("../config/permissions");
  * =====================================================
  * 📥 CREATE LEAD (PÚBLICO)
  * =====================================================
+ *
+ * 🎯 OBJETIVO:
+ * - Receber leads da landing page
+ * - NÃO exige autenticação (rota pública)
+ *
+ * 🧠 COMPATIBILIDADE:
+ * - Aceita tanto:
+ *   → { nome, empresa }
+ *   → { name, company }
+ *
+ * =====================================================
  */
 router.post("/", async (req, res) => {
   try {
-    const { name, company, whatsapp, email } = req.body;
+    /**
+     * 🔄 MAPEAMENTO FLEXÍVEL (frontend ↔ backend)
+     */
+    const {
+      nome,
+      name,
+      empresa,
+      company,
+      documento,
+      document,
+      whatsapp,
+      email,
+    } = req.body;
 
-    if (!name || !whatsapp) {
+    /**
+     * 🧠 NORMALIZAÇÃO DOS CAMPOS
+     */
+    const finalName = name || nome;
+    const finalCompany = company || empresa;
+    const finalDocument = document || documento;
+
+    /**
+     * 🧠 VALIDAÇÃO
+     */
+    if (!finalName || !whatsapp) {
       return res.status(400).json({
         error: "Nome e WhatsApp são obrigatórios",
       });
     }
 
+    /**
+     * 💾 CRIA LEAD NO BANCO
+     */
     const lead = await prisma.lead.create({
       data: {
-        name,
-        company,
+        name: finalName,
+        company: finalCompany,
+        document: finalDocument, // 👈 opcional
         whatsapp,
         email,
       },
     });
 
     return res.status(201).json({
-      message: "Lead salvo",
+      message: "Lead salvo com sucesso",
       lead,
     });
 
   } catch (error) {
-    console.error(error);
+    console.error("Erro ao criar lead:", error);
+
     return res.status(500).json({
       error: "Erro ao salvar lead",
     });
@@ -69,7 +107,8 @@ router.get(
       return res.json(leads);
 
     } catch (error) {
-      console.error(error);
+      console.error("Erro ao buscar leads:", error);
+
       return res.status(500).json({
         error: "Erro ao buscar leads",
       });

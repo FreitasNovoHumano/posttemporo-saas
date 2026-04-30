@@ -44,9 +44,6 @@ module.exports.io = io;
 io.on("connection", (socket) => {
   console.log("🟢 Socket conectado:", socket.id);
 
-  /**
-   * 🏢 Entrar em uma empresa (ROOM)
-   */
   socket.on("join_company", (companyId) => {
     if (!companyId) return;
 
@@ -56,9 +53,6 @@ io.on("connection", (socket) => {
     console.log(`📦 Socket ${socket.id} entrou na sala ${room}`);
   });
 
-  /**
-   * ❌ Desconexão
-   */
   socket.on("disconnect", () => {
     console.log("🔴 Socket desconectado:", socket.id);
   });
@@ -66,18 +60,19 @@ io.on("connection", (socket) => {
 
 /**
  * =====================================================
- * 🔐 CORS
+ * 🔐 CORS (CORRIGIDO)
  * =====================================================
  */
 app.use(
   cors({
     origin: "http://localhost:3000",
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // ✅ importante
     allowedHeaders: [
       "Content-Type",
       "Authorization",
-      "x-company-id", // 🔥 IMPORTANTE pro multi-tenant
+      "x-company-id",
     ],
+    credentials: true, // ✅ importante
   })
 );
 
@@ -87,6 +82,7 @@ app.use(
  * =====================================================
  */
 app.use(express.json());
+app.use(cookieParser());
 
 /**
  * =====================================================
@@ -98,22 +94,26 @@ const postRoutes = require("./routes/postRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const commentRoutes = require("./routes/commentRoutes");
-const timelineRoutes = require("./routes/timelineRoutes"); // 🔥 novo
-const inviteRoutes = require("./routes/inviteRoutes"); // 🔥 novo
-const leadRoutes = require('./routes/leadRoutes');
+const timelineRoutes = require("./routes/timelineRoutes");
+const inviteRoutes = require("./routes/inviteRoutes");
+const leadRoutes = require("./routes/leadRoutes");
 const aiRoutes = require("./routes/aiRoutes");
 
 /**
- * 🔥 Prefixo global (recomendado)
+ * 🔥 ROTAS PÚBLICAS (SEM AUTH)
  */
 app.use("/api/auth", authRoutes);
+app.use("/api/leads", leadRoutes); // 🔥 ESSENCIAL (mantido público)
+
+/**
+ * 🔐 ROTAS PRIVADAS (já tratadas internamente)
+ */
 app.use("/api/posts", postRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/comments", commentRoutes);
 app.use("/api/timeline", timelineRoutes);
 app.use("/api/invite", inviteRoutes);
-app.use("/api/leads", leadRoutes);
 app.use("/api/ai", aiRoutes);
 
 /**
