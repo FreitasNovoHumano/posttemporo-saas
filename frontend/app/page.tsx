@@ -2,14 +2,13 @@
 
 /**
  * =====================================================
- * 🌐 LANDING PAGE (VENDA + DEMO + CAPTURA)
+ * 🌐 LANDING PAGE (PRO + SAAS READY)
  * =====================================================
  *
- * 🎯 OBJETIVO:
- * - Converter visitantes
- * - Gerar leads qualificados
- * - Oferecer teste grátis
- * - Enviar leads para backend (Express + Prisma)
+ * ✔ Conversão
+ * ✔ Lead capture
+ * ✔ Simulação de post
+ * ✔ Login Google com onboarding
  *
  * =====================================================
  */
@@ -53,8 +52,9 @@ const postTemplates: Record<string, { title: string; cta: string }> = {
  * 🚀 COMPONENTE PRINCIPAL
  */
 export default function HomePage() {
+
   /**
-   * 📦 STATES (mantidos)
+   * 📦 STATES
    */
   const [showTest, setShowTest] = useState(false);
   const [type, setType] = useState("");
@@ -63,10 +63,9 @@ export default function HomePage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [imgIndex, setImgIndex] = useState(0);
 
   /**
-   * 📦 FORM DE LEAD
+   * 📦 FORM LEAD
    */
   const [lead, setLead] = useState<LeadForm>({
     empresa: "",
@@ -76,9 +75,6 @@ export default function HomePage() {
     whatsapp: "",
   });
 
-  /**
-   * ✏️ Atualiza formulário
-   */
   function handleLeadChange(e: ChangeEvent<HTMLInputElement>) {
     setLead({
       ...lead,
@@ -87,45 +83,42 @@ export default function HomePage() {
   }
 
   /**
-   * 🚀 ENVIO PARA BACKEND (NOVO)
+   * 🚀 ENVIO DE LEAD
    */
   async function handleLeadSubmit(e: FormEvent<HTMLFormElement>) {
-  e.preventDefault();
+    e.preventDefault();
 
-  try {
-    const response = await fetch("http://localhost:3001/api/leads", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(lead),
-    });
+    try {
+      const res = await fetch("http://localhost:3001/api/leads", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(lead),
+      });
 
-    const data = await response.json(); // 🔥 IMPORTANTE
+      const data = await res.json();
 
-    if (!response.ok) {
-      console.error("ERRO BACKEND:", data); // 👈 AQUI
-      throw new Error(data.error || "Erro ao salvar lead");
+      if (!res.ok) throw new Error(data.error);
+
+      alert("Cadastro enviado com sucesso!");
+
+      setLead({
+        empresa: "",
+        documento: "",
+        nome: "",
+        email: "",
+        whatsapp: "",
+      });
+
+    } catch (err) {
+      console.error(err);
+      alert("Erro ao enviar dados");
     }
-
-    alert("Cadastro enviado com sucesso!");
-
-    setLead({
-      empresa: "",
-      documento: "",
-      nome: "",
-      email: "",
-      whatsapp: "",
-    });
-
-  } catch (error) {
-    console.error("Erro completo:", error);
-    alert("Erro ao enviar dados");
   }
-}
 
   /**
-   * 🤖 SIMULADOR (mantido)
+   * 🤖 GERAR POST (SIMULAÇÃO)
    */
   function generatePost() {
     if (!type) {
@@ -135,7 +128,6 @@ export default function HomePage() {
 
     setLoading(true);
     setError(null);
-    setImgIndex(0);
 
     const template = postTemplates[type];
     const images = segmentImages[type] || segmentImages.default;
@@ -151,14 +143,16 @@ export default function HomePage() {
       });
 
       setLoading(false);
-    }, 700);
+    }, 600);
   }
 
   /**
-   * 🔐 LOGIN
+   * 🔐 LOGIN GOOGLE (CORRIGIDO)
    */
   function handleLogin() {
-    signIn("google", { callbackUrl: "/dashboard" });
+    signIn("google", {
+      callbackUrl: "/redirect", // 🔥 agora passa pelo onboarding
+    });
   }
 
   /**
@@ -182,7 +176,6 @@ export default function HomePage() {
         <p className="mt-2">Menos dúvida, mais movimento.</p>
         <p className="mt-2">Seu feed trabalhando pra você.</p>
 
-        {/* 🔥 TESTE GRÁTIS */}
         <button
           onClick={() => setShowTest(true)}
           className="mt-6 bg-green-600 text-white px-6 py-3 rounded"
@@ -191,7 +184,7 @@ export default function HomePage() {
         </button>
       </section>
 
-      {/* FORMULÁRIO */}
+      {/* FORM LEAD */}
       <section className="py-16 px-4 bg-gray-50">
         <div className="max-w-md mx-auto bg-white p-6 rounded-xl shadow">
 
@@ -201,51 +194,17 @@ export default function HomePage() {
 
           <form onSubmit={handleLeadSubmit} className="space-y-3">
 
-            <input
-              name="empresa"
-              placeholder="Nome da Empresa"
-              value={lead.empresa}
-              onChange={handleLeadChange}
-              className="w-full border p-2 rounded"
-              required
-            />
-
-            <input
-              name="documento"
-              placeholder="CNPJ ou CPF"
-              value={lead.documento}
-              onChange={handleLeadChange}
-              className="w-full border p-2 rounded"
-              required
-            />
-
-            <input
-              name="nome"
-              placeholder="Nome completo"
-              value={lead.nome}
-              onChange={handleLeadChange}
-              className="w-full border p-2 rounded"
-              required
-            />
-
-            <input
-              name="email"
-              type="email"
-              placeholder="E-mail"
-              value={lead.email}
-              onChange={handleLeadChange}
-              className="w-full border p-2 rounded"
-              required
-            />
-
-            <input
-              name="whatsapp"
-              placeholder="WhatsApp"
-              value={lead.whatsapp}
-              onChange={handleLeadChange}
-              className="w-full border p-2 rounded"
-              required
-            />
+            {Object.entries(lead).map(([key, value]) => (
+              <input
+                key={key}
+                name={key}
+                value={value}
+                onChange={handleLeadChange}
+                placeholder={key}
+                className="w-full border p-2 rounded"
+                required
+              />
+            ))}
 
             <button className="w-full bg-blue-600 text-white py-2 rounded">
               Cadastrar empresa
@@ -259,15 +218,11 @@ export default function HomePage() {
       <section className="py-12 text-center">
         <h2 className="text-xl font-semibold">Já é cliente?</h2>
 
-        <p className="text-gray-600 mb-4">
-          Se já adquiriu seu pacote, acesse abaixo:
-        </p>
-
         <button
           onClick={handleLogin}
-          className="bg-white border px-6 py-3 rounded shadow"
+          className="bg-white border px-6 py-3 rounded shadow mt-4"
         >
-          Entrar na plataforma
+          Entrar com Google
         </button>
       </section>
 
@@ -295,23 +250,31 @@ export default function HomePage() {
             ))}
           </select>
 
+          {error && (
+            <p className="text-red-500 text-sm">{error}</p>
+          )}
+
           <button
             onClick={generatePost}
-            className="bg-blue-600 text-white w-full py-2 rounded"
+            disabled={loading}
+            className="bg-blue-600 text-white w-full py-2 rounded disabled:opacity-50"
           >
-            Gerar post
+            {loading ? "Gerando..." : "Gerar post"}
           </button>
 
           {post && (
-            <img
-              src={post.image}
-              className="w-full h-64 object-cover rounded"
-              alt="post"
-            />
+            <div className="space-y-2">
+              <img
+                src={post.image}
+                className="w-full h-64 object-cover rounded"
+                alt="post"
+              />
+              <p className="text-sm">{post.content}</p>
+            </div>
           )}
+
         </section>
       )}
-
     </main>
   );
 }
