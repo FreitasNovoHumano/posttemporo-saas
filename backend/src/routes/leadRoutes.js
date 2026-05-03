@@ -3,6 +3,9 @@ const router = express.Router();
 
 const prisma = require("../lib/prisma");
 
+// 🔥 AUTOMAÇÃO (ADICIONE AQUI)
+const { sendWhatsAppLead } = require("../services/leadAutomationService");
+
 // 🔐 middlewares
 const auth = require("../middlewares/authMiddleware");
 const company = require("../middlewares/companyMiddleware");
@@ -66,11 +69,14 @@ router.post("/", async (req, res) => {
       data: {
         name: finalName,
         company: finalCompany,
-        document: finalDocument, // 👈 opcional
+        document: finalDocument, // opcional
         whatsapp,
         email,
       },
     });
+
+    // 🔥 AUTOMAÇÃO WHATSAPP
+await sendWhatsAppLead(lead);
 
     return res.status(201).json({
       message: "Lead salvo com sucesso",

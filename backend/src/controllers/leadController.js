@@ -1,12 +1,46 @@
 const prisma = require("../lib/prisma");
 
 /**
+ * =====================================================
  * 🚀 Criar Lead
+ * =====================================================
+ * 🎯 OBJETIVO:
+ * - Salvar lead vindo da landing page
+ * - Agora também salva:
+ *   → segmento do negócio
+ *   → post gerado (contexto de conversão)
+ *
+ * 🧠 BENEFÍCIO:
+ * - Permite automação personalizada
+ * - Melhora conversão no WhatsApp
+ * =====================================================
  */
 async function createLead(req, res) {
   try {
-    const { empresa, documento, nome, email, whatsapp } = req.body;
+    /**
+     * =====================================================
+     * 📥 DADOS RECEBIDOS DO FRONTEND
+     * =====================================================
+     */
+    const {
+      empresa,
+      documento,
+      nome,
+      email,
+      whatsapp,
 
+      // 🔥 NOVOS CAMPOS (não obrigatórios)
+      segment,
+      generatedPost,
+    } = req.body;
+
+    /**
+     * =====================================================
+     * 💾 CRIAÇÃO DO LEAD
+     * =====================================================
+     * ⚠️ NÃO ALTERAMOS O QUE JÁ FUNCIONA
+     * Apenas adicionamos novos campos opcionais
+     */
     const lead = await prisma.lead.create({
       data: {
         empresa,
@@ -14,16 +48,39 @@ async function createLead(req, res) {
         nome,
         email,
         whatsapp,
+
+        // 🔥 NOVOS DADOS PARA AUTOMAÇÃO
+        segment: segment || null,
+        generatedPost: generatedPost || null,
       },
     });
 
+    /**
+     * =====================================================
+     * 📤 RESPOSTA
+     * =====================================================
+     */
     return res.status(201).json(lead);
+
   } catch (error) {
+    /**
+     * =====================================================
+     * ❌ TRATAMENTO DE ERRO
+     * =====================================================
+     */
     console.error("Erro ao criar lead:", error);
-    return res.status(500).json({ error: "Erro ao salvar lead" });
+
+    return res.status(500).json({
+      error: "Erro ao salvar lead",
+    });
   }
 }
 
+/**
+ * =====================================================
+ * 📦 EXPORTAÇÃO
+ * =====================================================
+ */
 module.exports = {
   createLead,
 };

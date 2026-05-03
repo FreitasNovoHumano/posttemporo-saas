@@ -1,3 +1,4 @@
+import Script from "next/script";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -98,6 +99,37 @@ export default function RootLayout({
 
           </CompanyProvider>
         </Providers>
+
+        <Script id="facebook-pixel" strategy="afterInteractive">
+{`
+  !function(f,b,e,v,n,t,s){
+    if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+    n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];
+    s.parentNode.insertBefore(t,s)
+  }(window, document,'script',
+  'https://connect.facebook.net/en_US/fbevents.js');
+
+  fbq('init', '787186935473680');
+  fbq('track', 'PageView');
+`}
+</Script>
+
+<Script
+  src={`https://www.googletagmanager.com/gtag/js?id=SEU_GA_ID`}
+  strategy="afterInteractive"
+/>
+
+<Script id="google-analytics" strategy="afterInteractive">
+{`
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'SEU_GA_ID');
+`}
+</Script>
 
       </body>
     </html>

@@ -2,10 +2,16 @@
 
 import { useState, ChangeEvent, FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 
 import { generateLocalPost } from "@/utils/copyGenerator";
 import { segmentImages } from "@/utils/segmentImages";
 
+/**
+ * =====================================================
+ * 📦 TIPAGENS
+ * =====================================================
+ */
 type Post = {
   image: string;
   title: string;
@@ -33,6 +39,11 @@ type LeadForm = {
   file?: File | null;
 };
 
+/**
+ * =====================================================
+ * 🎯 TEMPLATES DE NEGÓCIO
+ * =====================================================
+ */
 const postTemplates: Record<string, { label: string }> = {
   restaurante: { label: "🍽️ Restaurante" },
   lanchonete: { label: "🍔 Lanchonete" },
@@ -60,6 +71,11 @@ export default function HomePage() {
     whatsapp: "",
   });
 
+  /**
+   * =====================================================
+   * ✏️ HANDLE INPUT LEAD
+   * =====================================================
+   */
   function handleLeadChange(e: ChangeEvent<HTMLInputElement>) {
     setLead({
       ...lead,
@@ -67,6 +83,11 @@ export default function HomePage() {
     });
   }
 
+  /**
+   * =====================================================
+   * 📤 SUBMIT LEAD
+   * =====================================================
+   */
   async function handleLeadSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
@@ -76,6 +97,10 @@ export default function HomePage() {
       Object.entries(lead).forEach(([key, value]) => {
         if (value) formData.append(key, value as string);
       });
+
+      // 🔥 NOVO
+formData.append("segment", type);
+formData.append("generatedPost", post?.content || "");
 
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/companies`, {
         method: "POST",
@@ -88,7 +113,16 @@ export default function HomePage() {
 
       alert("Empresa cadastrada com sucesso");
 
+      /**
+       * 📊 EVENTOS
+       */
       if (data?.id) {
+        (window as any).fbq?.("track", "CompleteRegistration", {
+          content_name: lead.empresa || "empresa_nao_informada",
+        });
+
+        (window as any).gtag?.("event", "sign_up");
+
         router.push(`/onboarding/company?leadId=${data.id}`);
       }
 
@@ -98,11 +132,19 @@ export default function HomePage() {
     }
   }
 
+  /**
+   * =====================================================
+   * ⚡ GERAR POST
+   * =====================================================
+   */
   function generatePost() {
     if (!type) {
       setError("Escolha um tipo de negócio");
       return;
     }
+
+    (window as any).fbq?.("track", "ViewContent");
+    (window as any).gtag?.("event", "view_item");
 
     setLoading(true);
     setError(null);
@@ -123,6 +165,11 @@ export default function HomePage() {
     }, 600);
   }
 
+  /**
+   * =====================================================
+   * 📍 CEP AUTO COMPLETE
+   * =====================================================
+   */
   async function handleCep(e: ChangeEvent<HTMLInputElement>) {
     const cep = e.target.value.replace(/\D/g, "");
 
@@ -163,9 +210,7 @@ export default function HomePage() {
         <p>Menos dúvida, mais movimento.</p>
         <p>Seu feed trabalhando pra você.</p>
 
-        {/* 🔥 CTAs */}
         <div className="mt-8 flex flex-col md:flex-row gap-4 justify-center">
-          
           <button
             onClick={() => setShowTest(true)}
             className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition"
@@ -174,11 +219,11 @@ export default function HomePage() {
           </button>
 
           <button
+            onClick={() => signIn("google")}
             className="border px-6 py-3 rounded-lg hover:bg-gray-100 transition"
           >
             🔐 Entrar com Google
           </button>
-
         </div>
 
         <p className="mt-4 text-sm text-gray-500">
@@ -186,7 +231,7 @@ export default function HomePage() {
         </p>
       </section>
 
-      {/* SIMULADOR COMO GANCHO */}
+      {/* SIMULADOR */}
       {showTest && (
         <section className="max-w-md mx-auto py-12 space-y-4">
 
@@ -222,25 +267,39 @@ export default function HomePage() {
             </div>
           )}
 
+          {/* =====================================================
+              🔥 NOVO BLOCO DE CONVERSÃO (ADICIONADO)
+              ===================================================== */}
+          {post && (
+            <div className="bg-yellow-50 border p-4 rounded mt-4">
+              <p className="text-sm font-semibold">
+                Quer mais posts como esse todos os dias?
+              </p>
+
+              <p className="text-xs text-gray-600 mb-3">
+                Receba ideias prontas no seu WhatsApp gratuitamente.
+              </p>
+
+              <button
+                onClick={() =>
+                  window.scrollTo({ top: 9999, behavior: "smooth" })
+                }
+                className="bg-black text-white px-4 py-2 rounded text-sm w-full"
+              >
+                Quero meus 7 posts grátis
+              </button>
+
+              <p className="text-xs text-gray-500 mt-2">
+                🔥 Mais de 127 negócios já geraram posts hoje
+              </p>
+
+            </div>
+          )}
+
         </section>
       )}
 
-      {post && (
-  <div className="bg-white p-4 rounded shadow space-y-2">
-    <p className="font-medium">
-      Quer receber mais ideias como essa?
-    </p>
-
-    <input placeholder="Seu nome" className="w-full border p-2 rounded" />
-    <input placeholder="Seu WhatsApp" className="w-full border p-2 rounded" />
-
-    <button className="bg-green-600 text-white w-full py-2 rounded">
-      Receber ideias
-    </button>
-  </div>
-)}
-
-      {/* CTA ANTES DO FORM */}
+      {/* CTA */}
       {showTest && (
         <div className="text-center pb-6">
           <p className="mb-3 font-medium">
@@ -256,7 +315,7 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* FORMULÁRIO */}
+      {/* FORM */}
       <section className="py-16 px-4 bg-gray-50">
         <div className="max-w-md mx-auto bg-white p-6 rounded-xl shadow">
 
@@ -265,7 +324,6 @@ export default function HomePage() {
           </h2>
 
           <form onSubmit={handleLeadSubmit} className="space-y-3">
-
             <input name="empresa" onChange={handleLeadChange} placeholder="Nome fantasia" className="w-full border p-2 rounded" required />
             <input name="corporateName" placeholder="Razão social" onChange={handleLeadChange} className="w-full border p-2 rounded" required />
             <input name="documento" onChange={handleLeadChange} placeholder="CNPJ ou CPF" className="w-full border p-2 rounded" required />
@@ -296,7 +354,6 @@ export default function HomePage() {
             <button className="w-full bg-blue-600 text-white py-2 rounded">
               🚀 Começar a gerar clientes
             </button>
-
           </form>
         </div>
       </section>
