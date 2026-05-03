@@ -1,0 +1,47 @@
+version: "3.9"
+
+services:
+  backend:
+    build: ./backend
+    container_name: backend_app
+    ports:
+      - "3001:3001"
+
+    # 🔗 Aguarda banco estar saudável
+    depends_on:
+      db:
+        condition: service_healthy
+
+    environment:
+      # ✅ USO INTERNO DO DOCKER (correto)
+      DATABASE_URL: "postgresql://postgres:postgres@db:5432/mydb"
+      DIRECT_URL: "postgresql://postgres:postgres@db:5432/mydb"
+      OPENAI_API_KEY: "sk-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"
+
+    command: npm run dev
+
+  db:
+    image: postgres:15
+    container_name: postgres_db
+    restart: always
+
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: mydb
+
+    ports:
+      - "5432:5432" # 🔥 expõe para acesso local (Prisma CLI)
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    # 🔥 garante que o banco está pronto antes do backend subir
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

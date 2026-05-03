@@ -2,22 +2,32 @@ const prisma = require("../lib/prisma");
 
 /**
  * =====================================================
- * 🏢 COMPANY MIDDLEWARE (PRO - MULTI-TENANT)
+ * 🏢 COMPANY MIDDLEWARE (PRO - MULTI-TENANT + RBAC)
  * =====================================================
- * Responsável por:
- * - Validar autenticação
- * - Identificar empresa via header
- * - Validar membership (user ↔ company)
- * - Injetar contexto seguro na request
  *
- * 🔥 CORE DO SaaS
+ * 🎯 RESPONSABILIDADES:
+ * - Validar autenticação (req.user)
+ * - Identificar empresa via header (x-company-id)
+ * - Validar vínculo (membership: user ↔ company)
+ * - Carregar ROLE + PERMISSIONS
+ * - Injetar contexto multi-tenant na request
+ *
+ * 🔥 IMPORTANTE:
+ * - Este middleware é o CORE do controle multi-tenant
+ * - Deve SEMPRE vir após authMiddleware
+ *
+ * 🧠 BOAS PRÁTICAS:
+ * - Executa apenas 1 query por request
+ * - Centraliza contexto para evitar reconsultas
+ * - Facilita RBAC e Permission-based access
+ *
  * =====================================================
  */
 
 async function companyMiddleware(req, res, next) {
   try {
     /**
-     * 🔐 1. VALIDAR USUÁRIO
+     * 🔐 1. VALIDAR USUÁRIO AUTENTICADO
      */
     if (!req.user || !req.user.id) {
       return res.status(401).json({
@@ -27,7 +37,7 @@ async function companyMiddleware(req, res, next) {
     }
 
     /**
-     * 🏢 2. OBTER COMPANY ID
+     * 🏢 2. OBTER COMPANY ID DO HEADER
      */
     const companyId = req.headers["x-company-id"];
 
@@ -39,7 +49,7 @@ async function companyMiddleware(req, res, next) {
     }
 
     /**
-     * 🔥 3. VALIDAR MEMBERSHIP (MULTI-TENANT)
+     * 🔥 3. VALIDAR MEMBERSHIP + CARREGAR ROLE E PERMISSIONS
      */
     const membership = await prisma.membership.findUnique({
       where: {
@@ -55,11 +65,22 @@ async function companyMiddleware(req, res, next) {
             name: true,
           },
         },
+        role: {
+          select: {
+            id: true,
+            name: true,
+            permissions: {
+              include: {
+                permission: true,
+              },
+            },
+          },
+        },
       },
     });
 
     /**
-     * 🚫 SEM ACESSO
+     * 🚫 ACESSO NEGADO
      */
     if (!membership) {
       return res.status(403).json({
@@ -69,7 +90,15 @@ async function companyMiddleware(req, res, next) {
     }
 
     /**
-     * 🔥 4. CONTEXTO MULTI-TENANT (PADRÃO GLOBAL)
+     * 🔥 4. EXTRAIR PERMISSIONS (NÍVEL PRO)
+     */
+    const permissions =
+      membership.role?.permissions?.map(
+        (rp) => rp.permission.name
+      ) || [];
+
+    /**
+     * 🔥 5. CONTEXTO MULTI-TENANT
      */
     req.company = {
       id: membership.company.id,
@@ -77,13 +106,24 @@ async function companyMiddleware(req, res, next) {
     };
 
     req.companyId = membership.company.id;
-    req.role = membership.role;
+    req.role = membership.role?.name;
     req.membership = membership;
 
     /**
-     * 🧠 FUTURO: permissões granulares
+     * 🔐 NOVO: PERMISSIONS DISPONÍVEIS NA REQUEST
      */
-    // req.permissions = await getPermissions(req.user.id, companyId);
+    req.permissions = permissions;
+
+    /**
+     * 🧠 CONTEXTO CENTRALIZADO
+     */
+    req.context = {
+      userId: req.user.id,
+      companyId: membership.company.id,
+      role: membership.role?.name,
+      permissions,
+      membership,
+    };
 
     return next();
   } catch (error) {

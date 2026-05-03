@@ -12,10 +12,9 @@
  * - Fornecer contexto global
  *
  * ⚙️ MELHORIAS:
- * - Token real (auth)
- * - Loading + Error states
- * - Sem reload desnecessário
- * - Código resiliente
+ * - Proteção SSR (Next.js)
+ * - Código mais resiliente
+ * - Melhor controle de loading
  *
  * =====================================================
  */
@@ -40,9 +39,12 @@ export function CompanyProvider({ children }) {
   const [error, setError] = useState(null);
 
   /**
-   * 🚀 INIT
+   * 🚀 INIT (executa apenas no client)
    */
   useEffect(() => {
+    // 🔒 Proteção contra SSR (Next.js)
+    if (typeof window === "undefined") return;
+
     const savedCompany = localStorage.getItem("companyId");
     const token = localStorage.getItem("token");
 
@@ -96,11 +98,13 @@ export function CompanyProvider({ children }) {
    * 🔄 Trocar empresa ativa
    */
   function switchCompany(id) {
-    localStorage.setItem("companyId", id);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("companyId", id);
+    }
+
     setCompanyId(id);
 
-    // 👉 melhor que reload: deixa o React reagir
-    // (se precisar, podemos disparar refetch em hooks)
+    // 👉 Sem reload (React reage naturalmente)
   }
 
   /**

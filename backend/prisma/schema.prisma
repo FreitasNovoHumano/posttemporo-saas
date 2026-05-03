@@ -1,104 +1,127 @@
-/**
- * =====================================================
- * ⚙️ CONFIGURAÇÃO
- * =====================================================
- */
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
-/**
- * =====================================================
- * 🏢 COMPANY (MULTI-TENANT)
- * =====================================================
- */
+/// *
+/// * =====================================================
+/// * 🏢 COMPANY (MULTI-TENANT)
+/// * =====================================================
 model Company {
-  id   String @id @default(uuid())
-  name String
-
-  memberships Membership[]
-  posts       Post[]
-  invites     Invite[]
-
-  createdAt DateTime @default(now())
+  id            String          @id @default(uuid())
+  /// Nome da empresa (exibição)
+  name          String
+  createdAt     DateTime        @default(now())
+  /// Slug único para URLs amigáveis
+  slug          String          @unique
+  /// Dados básicos (mantidos por compatibilidade)
+  address       String?
+  corporateName String?
+  document      String?
+  ownerName     String?
+  profile       CompanyProfile?
+  invites       Invite[]
+  memberships   Membership[]
+  posts         Post[]
 
   @@index([name])
+  @@index([slug])
 }
 
-/**
- * =====================================================
- * 👤 USER
- * =====================================================
- */
+/// *
+/// * =====================================================
+/// * 🧾 COMPANY PROFILE (DADOS COMPLETOS DA EMPRESA)
+/// * =====================================================
+model CompanyProfile {
+  id            String   @id @default(uuid())
+  /// Relação 1:1 com Company
+  companyId     String   @unique
+  /// Dados do formulário
+  document      String?
+  ownerName     String?
+  email         String?
+  whatsapp      String?
+  corporateName String?
+  ownerDocument String?
+  number        String?
+  /// Endereço
+  cep           String?
+  street        String?
+  neighborhood  String?
+  city          String?
+  state         String?
+  /// Upload
+  image         String?
+  createdAt     DateTime @default(now())
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+/// *
+/// * =====================================================
+/// * 👤 USER
+/// * =====================================================
 model User {
-  id       String  @id @default(uuid())
-  email    String  @unique
-  name     String?
-  password String
-
-  memberships Membership[]
-
-  posts         Post[]
-  permissions   UserPermission[]
-  notifications Notification[]
-  comments      Comment[]
-  audits        AuditLog[]
-  refreshTokens RefreshToken[]
-
-  createdAt DateTime @default(now())
+  id              String           @id @default(uuid())
+  email           String           @unique
+  name            String?
+  /// 🔐 senha
+  password        String?
+  createdAt       DateTime         @default(now())
+  /// Token de ativação
+  activationToken String?          @unique
+  /// Controle de ativação
+  isActive        Boolean          @default(false)
+  audits          AuditLog[]
+  comments        Comment[]
+  memberships     Membership[]
+  notifications   Notification[]
+  posts           Post[]
+  refreshTokens   RefreshToken[]
+  permissions     UserPermission[]
 
   @@index([email])
 }
 
-/**
- * =====================================================
- * 🔗 MEMBERSHIP
- * =====================================================
- */
+/// *
+/// * =====================================================
+/// * 🔗 MEMBERSHIP (MULTI-TENANT LINK)
+/// * =====================================================
 model Membership {
-  id        String @id @default(cuid())
-  userId    String
-  companyId String
-  roleId    String
-
-  user    User    @relation(fields: [userId], references: [id])
-  company Company @relation(fields: [companyId], references: [id])
-  role    Role    @relation(fields: [roleId], references: [id])
-
+  id         String    @id @default(cuid())
+  userId     String
+  companyId  String
   lastReadAt DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt  DateTime  @default(now())
+  roleId     String
+  updatedAt  DateTime  @updatedAt
+  company    Company   @relation(fields: [companyId], references: [id])
+  role       Role      @relation(fields: [roleId], references: [id])
+  user       User      @relation(fields: [userId], references: [id])
 
   @@unique([userId, companyId])
 }
 
-/**
- * =====================================================
- * 🔐 RBAC
- * =====================================================
- */
+/// *
+/// * =====================================================
+/// * 🔐 RBAC
+/// * =====================================================
 model Role {
-  id   String @id @default(cuid())
-  name String @unique
-
-  permissions RolePermission[]
-  memberships Membership[]
+  id          String           @id @default(cuid())
+  name        String           @unique
+  createdAt   DateTime         @default(now())
   invites     Invite[]
-
-  createdAt DateTime @default(now())
+  memberships Membership[]
+  permissions RolePermission[]
 }
 
 model Permission {
-  id   String @id @default(cuid())
-  name String @unique
-
+  id              String           @id @default(cuid())
+  name            String           @unique
   roles           RolePermission[]
   userPermissions UserPermission[]
 }
@@ -106,169 +129,140 @@ model Permission {
 model RolePermission {
   roleId       String
   permissionId String
-
-  role       Role       @relation(fields: [roleId], references: [id])
-  permission Permission @relation(fields: [permissionId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+  role         Role       @relation(fields: [roleId], references: [id])
 
   @@id([roleId, permissionId])
 }
 
 model UserPermission {
-  id           String @id @default(uuid())
+  id           String     @id @default(uuid())
   userId       String
   companyId    String
   permissionId String
-
-  user       User       @relation(fields: [userId], references: [id])
-  permission Permission @relation(fields: [permissionId], references: [id])
+  permission   Permission @relation(fields: [permissionId], references: [id])
+  user         User       @relation(fields: [userId], references: [id])
 }
 
-/**
- * =====================================================
- * 📝 POSTS
- * =====================================================
- */
+/// *
+/// * =====================================================
+/// * 📝 POSTS
+/// * =====================================================
 model Post {
-  id       Int     @id @default(autoincrement())
-  title    String
-  content  String
-  imageUrl String?
-
-  status PostStatus @default(DRAFT)
-
-  authorId String
-  author   User @relation(fields: [authorId], references: [id])
-
-  companyId String
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
+  title         String
+  content       String
+  status        PostStatus @default(DRAFT)
+  authorId      String
+  companyId     String
+  approvedBy    String?
+  approvedAt    DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  imageUrl      String?
   scheduledDate DateTime?
-
-  approvedBy String?
-  approvedAt DateTime?
-
-  comments Comment[]
-  audits   AuditLog[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            Int        @id @default(autoincrement())
+  audits        AuditLog[]
+  comments      Comment[]
+  author        User       @relation(fields: [authorId], references: [id])
+  company       Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
 }
 
-enum PostStatus {
-  DRAFT
-  SCHEDULED
-  PUBLISHED
-  APPROVED
-  REJECTED
-}
-
-/**
- * =====================================================
- * 🔔 NOTIFICAÇÕES
- * =====================================================
- */
+/// *
+/// * =====================================================
+/// * 🔔 NOTIFICAÇÕES
+/// * =====================================================
 model Notification {
-  id      String  @id @default(uuid())
-  userId  String
-  message String
-  read    Boolean @default(false)
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  id        String   @id @default(uuid())
+  userId    String
+  message   String
+  read      Boolean  @default(false)
   createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-/**
- * =====================================================
- * 💬 COMMENTS
- * =====================================================
- */
+/// *
+/// * =====================================================
+/// * 💬 COMMENTS
+/// * =====================================================
 model Comment {
-  id      Int    @id @default(autoincrement())
-  content String
-
-  postId Int
-  userId String
-
-  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  id        Int      @id @default(autoincrement())
+  content   String
+  postId    Int
+  userId    String
   createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-/**
- * =====================================================
- * 🧾 AUDIT LOG
- * =====================================================
- */
+/// *
+/// * =====================================================
+/// * 🧾 AUDIT LOG
+/// * =====================================================
 model AuditLog {
-  id     Int    @id @default(autoincrement())
-  action String
-
-  postId Int
-  userId String
-
-  meta Json?
-
-  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  id        Int      @id @default(autoincrement())
+  action    String
+  postId    Int
+  userId    String
   createdAt DateTime @default(now())
+  meta      Json?
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-/**
- * =====================================================
- * 🔐 REFRESH TOKEN
- * =====================================================
- */
+/// *
+/// * =====================================================
+/// * 🔐 REFRESH TOKEN
+/// * =====================================================
 model RefreshToken {
   id        String   @id @default(uuid())
   userId    String
   token     String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
-/**
- * =====================================================
- * ✉️ INVITES
- * =====================================================
- */
+/// *
+/// * =====================================================
+/// * ✉️ INVITES
+/// * =====================================================
 model Invite {
-  id        String @id @default(uuid())
+  id        String   @id @default(uuid())
   email     String
   companyId String
-  roleId    String
-  token     String @unique
-
+  token     String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
-
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  role    Role    @relation(fields: [roleId], references: [id])
+  roleId    String
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id])
 }
 
-/**
- * =====================================================
- * 📥 LEADS (ATUALIZADO)
- * =====================================================
- *
- * 🔥 NOVO:
- * - document (CPF/CNPJ)
- *
- * =====================================================
- */
+/// *
+/// * =====================================================
+/// * 📥 LEADS
+/// * =====================================================
 model Lead {
   id        String   @id @default(cuid())
   name      String
   company   String?
-  document  String?   // 🔥 NOVO CAMPO
   whatsapp  String
   email     String?
   createdAt DateTime @default(now())
+  document  String?
 
   @@index([email])
   @@index([whatsapp])
+}
+
+/// *
+/// * =====================================================
+/// * 📌 ENUMS
+/// * =====================================================
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  APPROVED
+  REJECTED
 }

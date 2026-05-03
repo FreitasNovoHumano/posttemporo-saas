@@ -57,6 +57,14 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  useEffect(() => {
+  const isAdmin = localStorage.getItem("admin-access");
+
+  if (!isAdmin) {
+    router.push("/login");
+  }
+}, []);
+
   /**
    * 🔐 PROTEÇÃO DE ROTA
    */

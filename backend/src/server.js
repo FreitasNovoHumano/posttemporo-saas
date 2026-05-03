@@ -4,6 +4,7 @@
  * =====================================================
  */
 
+require("dotenv").config();
 const cookieParser = require("cookie-parser");
 const express = require("express");
 const cors = require("cors");
@@ -66,13 +67,13 @@ io.on("connection", (socket) => {
 app.use(
   cors({
     origin: "http://localhost:3000",
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // ✅ importante
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: [
       "Content-Type",
       "Authorization",
       "x-company-id",
     ],
-    credentials: true, // ✅ importante
+    credentials: true,
   })
 );
 
@@ -86,7 +87,7 @@ app.use(cookieParser());
 
 /**
  * =====================================================
- * 📦 ROTAS (PADRÃO API)
+ * 📦 IMPORTAÇÃO DE ROTAS
  * =====================================================
  */
 const authRoutes = require("./routes/authRoutes");
@@ -100,13 +101,24 @@ const leadRoutes = require("./routes/leadRoutes");
 const aiRoutes = require("./routes/aiRoutes");
 
 /**
+ * 👤 USER (ADMIN / APROVAÇÃO)
+ */
+const userRoutes = require("./routes/userRoutes");
+
+/**
+ * =====================================================
+ * 📦 REGISTRO DE ROTAS
+ * =====================================================
+ */
+
+/**
  * 🔥 ROTAS PÚBLICAS (SEM AUTH)
  */
 app.use("/api/auth", authRoutes);
-app.use("/api/leads", leadRoutes); // 🔥 ESSENCIAL (mantido público)
+app.use("/api/leads", leadRoutes);
 
 /**
- * 🔐 ROTAS PRIVADAS (já tratadas internamente)
+ * 🔐 ROTAS PRIVADAS
  */
 app.use("/api/posts", postRoutes);
 app.use("/api/dashboard", dashboardRoutes);
@@ -115,6 +127,13 @@ app.use("/api/comments", commentRoutes);
 app.use("/api/timeline", timelineRoutes);
 app.use("/api/invite", inviteRoutes);
 app.use("/api/ai", aiRoutes);
+app.use("/companies", require("./routes/companyRoutes"));
+app.use("/content-library", require("./src/routes/contentLibraryRoutes"));
+
+/**
+ * 👤 ROTAS DE USUÁRIO (ADMIN)
+ */
+app.use("/api/users", userRoutes);
 
 /**
  * =====================================================
@@ -155,9 +174,9 @@ app.use((err, req, res, next) => {
  * ⏰ JOBS (CRON)
  * =====================================================
  */
-const startPublishPostsJob = require("./jobs/publishPosts.job");
+/*const startPublishPostsJob = require("./jobs/publishPosts.job");
 
-startPublishPostsJob(io);
+startPublishPostsJob(io);*?
 
 /**
  * =====================================================
@@ -166,6 +185,7 @@ startPublishPostsJob(io);
  */
 const PORT = process.env.PORT || 3001;
 
+// ⚠️ IMPORTANTE: usar server.listen (não app.listen por causa do socket)
 server.listen(PORT, () => {
-  console.log(`🚀 Backend rodando em http://localhost:${PORT}`);
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });

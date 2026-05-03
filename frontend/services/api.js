@@ -110,7 +110,9 @@ async function refreshToken() {
 }
 
 /**
- * 🔥 FETCH PADRÃO COM RETRY
+ * =====================================================
+ * 🔥 FETCH PADRÃO (CORRIGIDO)
+ * =====================================================
  */
 export async function apiFetch(url, options = {}) {
   let res;
@@ -143,50 +145,52 @@ export async function apiFetch(url, options = {}) {
       return { data: null, error: "UNAUTHORIZED" };
     }
 
-    // 🔁 retry
     try {
       res = await fetchWithTimeout(`${API_URL}${url}`, {
-  ...options,
-  _retry: true,
+        ...options,
+        _retry: true,
         headers: {
           ...getAuthHeaders(options.body instanceof FormData),
           ...(options.headers || {}),
         },
         credentials: "include",
       });
-    } catch (error) {
-      return {
-        data: null,
-        error: "NETWORK_ERROR",
-      };
+    } catch {
+      return { data: null, error: "NETWORK_ERROR" };
     }
+  }
+
+  /**
+   * 🔥 CORREÇÃO PRINCIPAL:
+   * 👉 Lê o body apenas UMA VEZ
+   */
+  const text = await res.text();
+
+  let data;
+
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
   }
 
   /**
    * ❌ ERRO HTTP
    */
   if (!res.ok) {
-    let message = "Erro desconhecido";
-
-    try {
-      const json = await res.json();
-      message = json.error || message;
-    } catch {
-      message = await res.text();
-    }
-
     return {
       data: null,
-      error: `HTTP_${res.status}: ${message}`,
+      error: data?.error || "Erro na requisição",
     };
   }
 
   /**
    * ✅ SUCESSO
    */
-  const data = await res.json();
-
-  return { data, error: null };
+  return {
+    data,
+    error: null,
+  };
 }
 
 /**
@@ -195,13 +199,10 @@ export async function apiFetch(url, options = {}) {
  * =====================================================
  */
 
-// 🔹 Login
 export async function loginUser(payload) {
   const res = await fetchWithTimeout(`${API_URL}/api/auth/login`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
     credentials: "include",
   });
@@ -217,7 +218,6 @@ export async function loginUser(payload) {
   return { data, error: null };
 }
 
-// 🔹 Logout
 export async function logoutUser() {
   await fetchWithTimeout(`${API_URL}/api/auth/logout`, {
     method: "POST",
@@ -227,7 +227,6 @@ export async function logoutUser() {
   accessToken = null;
 }
 
-// 🔹 Usuário logado
 export function getMe() {
   return apiFetch("/api/auth/me");
 }
@@ -280,15 +279,10 @@ export function rejectPost(id, comment) {
 
 /**
  * =====================================================
- * 🔄 SESSION RESTORE (F5 FIX)
- * =====================================================
- *
- * - Usa refresh token (cookie)
- * - Recupera access token automaticamente
- * - Pode ser chamado no AuthContext
- *
+ * 🔄 SESSION RESTORE
  * =====================================================
  */
+
 export async function restoreSession() {
   const refreshed = await refreshToken();
 

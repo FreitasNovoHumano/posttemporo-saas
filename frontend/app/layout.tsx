@@ -11,8 +11,11 @@ import { CompanyProvider } from "../context/CompanyContext";
 // 🔔 Toast
 import { Toaster } from "react-hot-toast";
 
+// 🔝 Header global
+import Header from "../components/layout/Header";
+
 /**
- * 🔤 Fontes otimizadas
+ * 🔤 Fontes otimizadas (Google Fonts)
  */
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -25,15 +28,38 @@ const geistMono = Geist_Mono({
 });
 
 /**
- * 📄 Metadata
+ * 📄 Metadata (SEO + Favicon + Branding)
+ *
+ * 👉 Aqui definimos:
+ * - Nome da aba do navegador
+ * - Ícone (favicon)
+ * - Descrição para SEO
  */
 export const metadata: Metadata = {
-  title: "Freitas Post Growth",
-  description: "Sistema de geração e gestão de conteúdo",
+  title: "Freitas Growth",
+
+  description:
+    "Automação, IA e geração de leads para crescimento de empresas.",
+
+  /**
+   * 🖼️ Favicon
+   * Certifique-se que o arquivo está em:
+   * /public/logo.png
+   */
+  icons: {
+    icon: "/logo.png",
+  },
 };
 
 /**
  * 🧠 ROOT LAYOUT (SAAS READY)
+ *
+ * Estrutura global da aplicação:
+ * - Providers (Auth, Query, etc)
+ * - Contexto de empresa (multi-tenant)
+ * - Header global
+ * - Conteúdo das páginas
+ * - Notificações (Toast)
  */
 export default function RootLayout({
   children,
@@ -50,7 +76,13 @@ export default function RootLayout({
           {/* 🏢 Contexto multi-tenant */}
           <CompanyProvider>
 
-            {children}
+            {/* 🔝 Header global */}
+            <Header />
+
+            {/* 📦 Conteúdo das páginas */}
+            <main>
+              {children}
+            </main>
 
             {/* 🔔 Toast global */}
             <Toaster

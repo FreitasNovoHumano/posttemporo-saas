@@ -1,0 +1,50 @@
+/**
+ * =====================================================
+ * 🧱 ROOT LAYOUT (PRO - SAAS READY)
+ * =====================================================
+ *
+ * 🎯 RESPONSABILIDADES:
+ * - Envolver a aplicação com Providers globais
+ * - Injetar contexto de empresa (multi-tenant)
+ * - Configurar estrutura base HTML
+ * - Configurar toast global
+ *
+ * 🔐 AUTH:
+ * - NextAuth via SessionProvider (providers.jsx)
+ *
+ * ⚠️ IMPORTANTE:
+ * - NÃO usar "use client" aqui
+ * - Este é um Server Component
+ *
+ * =====================================================
+ */
+
+import { Providers } from "./providers";
+import { CompanyProvider } from "@/context/CompanyContext";
+
+import { Toaster } from "react-hot-toast";
+
+import "./globals.css";
+
+export default function RootLayout({ children }) {
+  console.log("LAYOUT RENDERIZOU"); // 🧪 debug
+
+  return (
+    <html lang="pt-BR">
+      <body className="bg-gray-100">
+
+        {/* 🌐 Providers globais */}
+        <Providers>
+          {/* 🏢 Contexto de empresa */}
+          <CompanyProvider>
+            {children}
+          </CompanyProvider>
+        </Providers>
+
+        {/* 🔔 Toast global */}
+        <Toaster position="top-right" />
+
+      </body>
+    </html>
+  );
+}

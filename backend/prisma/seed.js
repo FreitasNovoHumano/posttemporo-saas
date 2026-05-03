@@ -14,10 +14,11 @@ async function main() {
 
   for (const name of permissions) {
     const perm = await prisma.permission.upsert({
-  where: { name: "VIEW_LEADS" },
-  update: {},
-  create: { name: "VIEW_LEADS" },
-});
+      // ✅ usa o nome dinâmico
+      where: { name },
+      update: {},
+      create: { name },
+    });
 
     createdPermissions[name] = perm;
   }
@@ -43,7 +44,7 @@ async function main() {
     create: { name: "VIEWER" },
   });
 
-  // 🔗 ADMIN → tudo
+  // 🔗 ADMIN → todas permissões
   for (const perm of Object.values(createdPermissions)) {
     await prisma.rolePermission.upsert({
       where: {
@@ -64,8 +65,16 @@ async function main() {
   const editorPerms = ["CREATE_POST", "UPDATE_POST", "VIEW_DASHBOARD"];
 
   for (const name of editorPerms) {
-    await prisma.rolePermission.create({
-      data: {
+    await prisma.rolePermission.upsert({
+      // 🔥 evita duplicação (melhor que create)
+      where: {
+        roleId_permissionId: {
+          roleId: editor.id,
+          permissionId: createdPermissions[name].id,
+        },
+      },
+      update: {},
+      create: {
         roleId: editor.id,
         permissionId: createdPermissions[name].id,
       },
@@ -73,12 +82,28 @@ async function main() {
   }
 
   // 🔗 VIEWER
-  await prisma.rolePermission.create({
-    data: {
+  await prisma.rolePermission.upsert({
+    where: {
+      roleId_permissionId: {
+        roleId: viewer.id,
+        permissionId: createdPermissions.VIEW_DASHBOARD.id,
+      },
+    },
+    update: {},
+    create: {
       roleId: viewer.id,
       permissionId: createdPermissions.VIEW_DASHBOARD.id,
     },
   });
+
+  console.log("🌱 Seed executado com sucesso!");
 }
 
-main();
+main()
+  .catch((e) => {
+    console.error("❌ Erro no seed:", e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

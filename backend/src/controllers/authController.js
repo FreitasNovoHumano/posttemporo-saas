@@ -77,6 +77,12 @@ async function login(req, res) {
       return res.status(401).json({
         error: "Usuário não encontrado",
       });
+
+      if (!user.approved || user.status !== "ACTIVE") {
+  return res.status(403).json({
+    message: "Aguardando aprovação do administrador",
+  });
+}
     }
 
     const valid = await bcrypt.compare(password, user.password);
