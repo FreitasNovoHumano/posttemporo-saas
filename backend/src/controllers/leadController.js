@@ -1,4 +1,5 @@
 const prisma = require("../lib/prisma");
+const { handleNewLead } = require("../services/leadAutomationService");
 
 /**
  * =====================================================
@@ -33,6 +34,7 @@ async function createLead(req, res) {
       segment,
       generatedPost,
     } = req.body;
+    
 
     /**
      * =====================================================
@@ -54,6 +56,11 @@ async function createLead(req, res) {
         generatedPost: generatedPost || null,
       },
     });
+
+    // 🔥 AUTOMAÇÃO
+handleNewLead(lead);
+
+return res.status(201).json(lead);
 
     /**
      * =====================================================
